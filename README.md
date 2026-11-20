@@ -74,7 +74,7 @@ the animals living in it.
   in one space; each sensor sits in one.
 - **Needs** come from a species preset (below), overridable per animal on its
   page via **Space & needs**. Overrides are for breed, age, coat, health or vet
-  advice. The sample Bernese has its max lowered to 24 °C for its double coat.
+  advice, for example a lowered maximum for a heavy-coated breed.
 - **A shared space must suit every resident.** Herd uses the highest minimum and
   lowest maximum among them, names the animal whose limit binds, and flags a
   conflict outright when no range works (a brooder of chicks needing 32 °C
@@ -175,8 +175,7 @@ on every device, and it's the right tool for spot checks such as an ammonia
 meter in a barn.
 
 **Simulated.** Demo sensors with a realistic daily cycle, so you can see the hub
-working before buying hardware. The sample "Living room" uses two of them.
-Remove them whenever you like.
+working before buying hardware. Remove them whenever you like.
 
 ### Limits worth knowing
 
@@ -207,9 +206,8 @@ Sex uses veterinary shorthand: `M` intact male, `MN` neutered male, `F` intact
 female, `FS` spayed female, `U` unknown. Age is stored as "N years as of a date"
 and advances on its own.
 
-Both dogs share a sample space, "Living room", with two simulated sensors
-(climate and CO₂). Dog 1's heat override makes the afternoon peak visible as a
-flag.
+The Environment tab starts empty ("No sensors connected yet"). Add a space and
+a sensor, or a simulated sensor to see it working, whenever you're ready.
 
 **Reset sample data** in the footer restores the seed at any time.
 
@@ -261,7 +259,7 @@ you first.
 
 ## Run it locally
 
-Open `index.html` directly in a browser — it works from `file://`.
+Open `index.html` (the landing page) or `app.html` (the app) directly in a browser. Both work from `file://`.
 
 Or serve the folder, which matches GitHub Pages more closely:
 
@@ -273,7 +271,7 @@ Then visit <http://localhost:8000>.
 
 ## Deploy to GitHub Pages
 
-Herd is already shaped for Pages: `index.html` is at the repository root,
+Herd is already shaped for Pages: the landing page `index.html` is at the repository root (the app is `app.html`),
 routing uses URL hashes (`#/s/HRD-0001`) so no server rewrites are needed, and
 `.nojekyll` tells Pages to serve the files untouched.
 
@@ -339,8 +337,10 @@ Every later push to `main` redeploys automatically.
 ## Project structure
 
 ```
-index.html              App shell
+index.html              Landing page
+app.html                App shell
 .nojekyll               Serve files as-is on GitHub Pages
+assets/css/landing.css  Landing page layout
 assets/css/herd.css     Design system: tokens, light/dark, layout, components
 assets/js/util.js       Dates, formatting, escaping
 assets/js/seed.js       Sample subjects and 14 days of entries each
@@ -366,7 +366,7 @@ in dependency order, so the app also works when opened from `file://`.
 - **Accent color** — `--accent` and `--band` in `assets/css/herd.css`, once in
   `:root` and once in the dark-mode block.
 - **Fonts** — Inter and JetBrains Mono load from Google Fonts. To make zero
-  third-party requests, delete the three font `<link>` tags in `index.html`;
+  third-party requests, delete the three font `<link>` tags in `index.html` and `app.html`;
   Herd falls back to the system UI font and SF Mono / Menlo / Consolas.
 
 ## Accessibility

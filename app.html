@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Herd</title>
+  <meta name="description" content="Herd keeps a continuous lifecycle record for each animal and flags when it deviates from its own baseline.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F5EBDD" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1F1510" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%238C6C3C'/%3E%3Cpath fill='%23fff' d='M9 8h3v6.5h8V8h3v16h-3v-6.5h-8V24H9z'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="assets/css/herd.css">
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <defs>
+      <filter id="goo" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="b"></feGaussianBlur>
+        <feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -11"></feColorMatrix>
+      </filter>
+    </defs>
+  </svg>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="wordmark" href="#/" aria-label="Herd, go to overview">HERD</a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="#/" data-nav="overview">Subjects</a>
+        <a href="#/env" data-nav="env">Environment</a>
+      </nav>
+      <nav class="topbar-actions" aria-label="Data">
+        <button type="button" class="btn btn-quiet" data-action="import">Import</button>
+        <button type="button" class="btn btn-quiet" data-action="export">Export</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="container" tabindex="-1">
+    <noscript><p class="noscript">Herd needs JavaScript enabled to run.</p></noscript>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>Records are stored in this browser only. Export regularly to back them up.</span>
+      <span class="mono" id="last-export">Last export: never</span>
+      <span class="footer-actions">
+        <button type="button" class="link-btn footer-data" data-action="import">Import</button>
+        <button type="button" class="link-btn footer-data" data-action="export">Export</button>
+        <button type="button" class="link-btn" data-action="reset">Reset sample data</button>
+      </span>
+    </div>
+  </footer>
+
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/js/util.js"></script>
+  <script src="assets/js/seed.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/baseline.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/env-store.js"></script>
+  <script src="assets/js/environment.js"></script>
+  <script src="assets/js/sensors.js"></script>
+  <script src="assets/js/views.js"></script>
+  <script src="assets/js/env-views.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Herd</title>
-  <meta name="description" content="Herd keeps a continuous lifecycle record for each animal and flags when it deviates from its own baseline.">
+  <title>Herd · A lifecycle record for every animal</title>
+  <meta name="description" content="Herd keeps a continuous daily record for each animal and flags when one drifts from its own baseline. Runs in your browser. No account.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#F5EBDD" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1F1510" media="(prefers-color-scheme: dark)">
@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="assets/css/herd.css">
+  <link rel="stylesheet" href="assets/css/landing.css">
 </head>
 <body>
   <svg width="0" height="0" aria-hidden="true" style="position:absolute">
@@ -26,49 +27,71 @@
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="topbar">
-    <div class="container topbar-inner">
-      <a class="wordmark" href="#/" aria-label="Herd, go to overview">HERD</a>
-      <nav class="topnav" aria-label="Primary">
-        <a href="#/" data-nav="overview">Subjects</a>
-        <a href="#/env" data-nav="env">Environment</a>
-      </nav>
-      <nav class="topbar-actions" aria-label="Data">
-        <button type="button" class="btn btn-quiet" data-action="import">Import</button>
-        <button type="button" class="btn btn-quiet" data-action="export">Export</button>
+    <div class="l-wrap topbar-inner">
+      <a class="wordmark" href="./" aria-label="Herd home">HERD</a>
+      <nav class="topbar-actions" aria-label="Primary">
+        <a class="btn btn-primary" href="app.html">Open Herd</a>
       </nav>
     </div>
   </header>
 
-  <main id="main" class="container" tabindex="-1">
-    <noscript><p class="noscript">Herd needs JavaScript enabled to run.</p></noscript>
+  <main id="main" class="l-wrap" tabindex="-1">
+    <section class="l-hero">
+      <div class="l-copy">
+        <p class="eyebrow">Lifecycle records</p>
+        <h1>A continuous record for every animal.</h1>
+        <p class="l-lede">Herd keeps a daily profile for each animal and flags when one drifts from <em>its own</em> normal, not a breed average.</p>
+        <div class="l-cta">
+          <a class="btn btn-primary" href="app.html">Open Herd</a>
+          <a class="btn" href="#how">How it works</a>
+        </div>
+        <p class="l-fine">Runs in your browser. No account. Your records stay on your device.</p>
+      </div>
+      <div class="l-art" aria-hidden="true">
+        <div class="vessel" style="--lvl: 58%">
+          <div class="v-goo">
+            <span class="v-body"></span>
+            <svg class="v-wave" viewBox="0 0 400 26" preserveAspectRatio="none"><path d="M0 13 Q50 1 100 13 T200 13 T300 13 T400 13 V26 H0Z"></path></svg>
+            <svg class="v-wave w2" viewBox="0 0 400 26" preserveAspectRatio="none"><path d="M0 13 Q50 25 100 13 T200 13 T300 13 T400 13 V26 H0Z"></path></svg>
+            <span class="v-dr a"></span><span class="v-dr b"></span><span class="v-dr c"></span>
+          </div>
+          <span class="v-shade"></span><span class="v-glow"></span>
+          <span class="v-hl"></span><span class="v-glint"></span>
+          <div class="v-num"><b>24.8°</b><small>Living room</small></div>
+        </div>
+      </div>
+    </section>
+
+    <ul class="l-features">
+      <li>
+        <span class="eyebrow">Baseline</span>
+        <h2>Compared with itself</h2>
+        <p>Each entry is measured against that animal’s own last 14 days. A 30% drop in energy or activity, or low intake, is flagged with the exact reason.</p>
+      </li>
+      <li>
+        <span class="eyebrow">Climate</span>
+        <h2>Surroundings that suit the animal</h2>
+        <p>Group animals into spaces and check temperature, humidity and air against what each species and individual needs. Add sensors whenever you’re ready.</p>
+      </li>
+      <li>
+        <span class="eyebrow">Yours</span>
+        <h2>Private and portable</h2>
+        <p>Everything is stored in your browser. Export a JSON backup any time and import it anywhere.</p>
+      </li>
+    </ul>
+
+    <ol class="l-steps" id="how" aria-label="How it works">
+      <li><strong>Add your animals</strong>Each gets a permanent ID, species, sex and age.</li>
+      <li><strong>Log a daily entry</strong>Wake time, food, energy, activity and notes. It takes under a minute.</li>
+      <li><strong>Watch for flags</strong>Herd shows Nominal, Watch or Flag for each animal, with the reason.</li>
+    </ol>
   </main>
 
   <footer class="footer">
-    <div class="container footer-inner">
-      <span>Records are stored in this browser only. Export regularly to back them up.</span>
-      <span class="mono" id="last-export">Last export: never</span>
-      <span class="footer-actions">
-        <button type="button" class="link-btn footer-data" data-action="import">Import</button>
-        <button type="button" class="link-btn footer-data" data-action="export">Export</button>
-        <button type="button" class="link-btn" data-action="reset">Reset sample data</button>
-      </span>
+    <div class="l-wrap footer-inner">
+      <span>Herd keeps records in this browser only. Export regularly to back them up.</span>
+      <span class="footer-actions"><a href="app.html">Open Herd</a></span>
     </div>
   </footer>
-
-  <input type="file" id="import-file" accept="application/json,.json" hidden>
-  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-  <script src="assets/js/util.js"></script>
-  <script src="assets/js/seed.js"></script>
-  <script src="assets/js/store.js"></script>
-  <script src="assets/js/baseline.js"></script>
-  <script src="assets/js/charts.js"></script>
-  <script src="assets/js/env-store.js"></script>
-  <script src="assets/js/environment.js"></script>
-  <script src="assets/js/sensors.js"></script>
-  <script src="assets/js/views.js"></script>
-  <script src="assets/js/env-views.js"></script>
-  <script src="assets/js/app.js"></script>
 </body>
 </html>

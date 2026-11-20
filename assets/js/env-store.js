@@ -215,18 +215,9 @@
     });
   }
 
+  /* Starts empty: no spaces, sensors or readings until the user adds them. */
   function seed() {
-    const d = emptyState();
-    const now = new Date().toISOString();
-    d.spaces.push({ id: 'SPC-0001', name: 'Living room' });
-    d.residency = { 'HRD-0001': 'SPC-0001', 'HRD-0002': 'SPC-0001' };
-    d.needs = { 'HRD-0001': { temp: { max: 24 }, note: 'Heavy double coat: upper limit lowered' } };
-    d.sensors.push(
-      { id: 'SNS-0001', name: 'Living room climate', kind: 'demo', spaceId: 'SPC-0001', metrics: ['temp', 'humidity'], intervalSec: 60, enabled: true, offsets: {}, config: { profile: 'climate' }, createdAt: now },
-      { id: 'SNS-0002', name: 'Living room air', kind: 'demo', spaceId: 'SPC-0001', metrics: ['co2'], intervalSec: 60, enabled: true, offsets: {}, config: { profile: 'air' }, createdAt: now },
-    );
-    d.meta = { nextSensor: 3, nextSpace: 2 };
-    return d;
+    return emptyState();
   }
 
   function load() {

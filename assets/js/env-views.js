@@ -152,6 +152,16 @@
     const attention = analyses.filter((a) => a.level === 'watch' || a.level === 'flag').length;
     const unassigned = S.subjects().filter((s) => !ES.spaceOf(s.id));
 
+    if (!spaces.length && !sensors.length) {
+      return { html: `<div class="panel empty env-none">
+        <p class="env-none-title">No sensors connected yet</p>
+        <p class="muted">Add a sensor when your hardware is ready, or log readings by hand. Spaces and climate checks appear here once you do.</p>
+        <div class="env-none-actions">
+          <button type="button" class="btn btn-primary" data-action="new-sensor">Add sensor</button>
+          <button type="button" class="btn" data-action="new-space">Add space</button>
+        </div>
+      </div>` };
+    }
     const tiles = `<div class="hairgrid tiles env-tiles">
       <div class="tile static"><span class="eyebrow">Spaces</span><span class="tile-num">${spaces.length}</span></div>
       <div class="tile static"><span class="eyebrow"><i class="dot nominal"></i>Sensors reporting</span><span class="tile-num">${live}<span class="tile-of"> / ${sensors.length}</span></span></div>
@@ -433,6 +443,8 @@
   }
 
   function subjectPanel(subject) {
+    // Nothing to show until a space or sensor exists.
+    if (!ES.spaces().length && !ES.sensors().length) return '';
     return `<section class="section" aria-labelledby="env-h">
       <div class="section-head">
         <h2 class="eyebrow" id="env-h">Environment</h2>
@@ -496,7 +508,7 @@
   function overviewSummaryBody() {
     const spaces = ES.spaces();
     if (!spaces.length) {
-      return { html: `<div class="panel panel-body env-empty-line"><span class="muted">No spaces or sensors yet.</span> <a href="#/env">Set up environment monitoring</a></div>` };
+      return { html: `<div class="panel panel-body env-empty-line"><span class="muted">No sensors connected yet.</span> <a href="#/env">Environment</a></div>` };
     }
     const u = unit();
     const rows = spaces.map((sp) => {
