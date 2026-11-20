@@ -1,0 +1,21 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local exports and scratch (Herd backups contain your records)
+herd-backup-*.json
+*.local.*
+tmp/
+
+# Tooling (Herd has no build step; these only appear if you add one)
+node_modules/
+npm-debug.log*
+.env
+.env.*
