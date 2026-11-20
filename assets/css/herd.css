@@ -1737,10 +1737,107 @@ dialog::backdrop { background: rgba(30, 24, 60, 0.28); -webkit-backdrop-filter: 
   .panel, .list, .hairgrid > *, .topbar-inner, dialog, .toast, .btn, .tt { background: var(--surface); }
 }
 
+/* ---------- Clear glass ----------------------------------------------------
+   Less frost, more of the backdrop. No solid fills anywhere: every surface is
+   translucent material, light and dark alike. */
+
+:root {
+  --g-bg: rgba(255, 255, 255, 0.15);
+  --g-bg-2: rgba(255, 255, 255, 0.1);
+  --g-blur: blur(14px) saturate(2.3) brightness(1.05);
+  --g-sheen: rgba(255, 255, 255, 0.7);
+  --g-sheen2: rgba(255, 255, 255, 0.16);
+  --g-glow: rgba(255, 255, 255, 0.38);
+  --surface: rgba(255, 255, 255, 0.34);
+  --text-3: #66666F;
+  --disc-a: rgba(247, 165, 125, 0.6);
+  --disc-b: rgba(150, 138, 246, 0.55);
+  --disc-c: rgba(128, 190, 238, 0.6);
+  --blob-a: rgba(247, 170, 130, 0.85);
+  --blob-b: rgba(150, 140, 248, 0.8);
+  --blob-c: rgba(238, 205, 160, 0.85);
+  --blob-d: rgba(140, 196, 244, 0.75);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --g-bg: rgba(255, 255, 255, 0.045);
+    --g-bg-2: rgba(255, 255, 255, 0.03);
+    --g-blur: blur(18px) saturate(1.9) brightness(1.1);
+    --g-hi: rgba(255, 255, 255, 0.34);
+    --g-sheen: rgba(255, 255, 255, 0.2);
+    --g-sheen2: rgba(255, 255, 255, 0.03);
+    --g-glow: rgba(255, 255, 255, 0.07);
+    --surface: rgba(255, 255, 255, 0.07);
+    --text-2: #C4C4CE;
+    --text-3: #A8A8B4;
+    --disc-a: rgba(110, 120, 255, 0.4);
+    --disc-b: rgba(200, 105, 215, 0.34);
+    --disc-c: rgba(60, 180, 200, 0.34);
+    --blob-a: rgba(140, 86, 58, 0.55);
+    --blob-b: rgba(76, 84, 210, 0.6);
+    --blob-c: rgba(138, 70, 150, 0.5);
+    --blob-d: rgba(30, 124, 144, 0.55);
+  }
+}
+
+/* crisp shapes behind the page, so the glass has edges to bend */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 80% 16%, var(--disc-a) 0 10%, transparent 10.4%),
+    radial-gradient(circle at 12% 60%, var(--disc-b) 0 12%, transparent 12.4%),
+    radial-gradient(circle at 72% 84%, var(--disc-c) 0 9%, transparent 9.4%);
+  filter: blur(2px);
+  animation: ambient2 70s ease-in-out infinite alternate;
+}
+@keyframes ambient2 {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-3%, 2.5%, 0) scale(1.04); }
+}
+
+.panel, .list, .hairgrid > *, .topbar-inner, dialog, .toast, .btn, .tt {
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+}
+.panel, .list, .hairgrid > *, .topbar-inner, dialog, .toast {
+  background: var(--g-bg);
+  box-shadow: inset 0 1px 0 var(--g-hi), inset 0 -1px 1px var(--g-lo), inset 0 0 26px var(--g-glow), 0 18px 40px var(--g-drop), 0 2px 6px rgba(40, 30, 80, 0.05);
+}
+.panel .panel, .panel .hairgrid > *, dialog .panel { background: var(--g-bg-2); box-shadow: inset 0 1px 0 var(--g-hi); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.btn { background: var(--g-bg); box-shadow: inset 0 1px 0 var(--g-hi), inset 0 -1px 1px var(--g-lo), inset 0 0 14px var(--g-glow), 0 8px 20px var(--g-drop); }
+.btn-quiet { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.btn-primary { background: color-mix(in srgb, var(--accent) 72%, transparent); color: #fff; text-shadow: 0 1px 2px rgba(20, 20, 80, 0.35); border: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 1px rgba(255, 255, 255, 0.18), inset 0 0 18px rgba(255, 255, 255, 0.22), 0 10px 24px color-mix(in srgb, var(--accent) 30%, transparent); }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 82%, transparent); }
+.btn-danger-solid { background: color-mix(in srgb, var(--bad) 60%, transparent); color: var(--text); }
+.topnav a[aria-current="page"] { background: rgba(255, 255, 255, 0.34); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 12px rgba(255, 255, 255, 0.25), 0 2px 8px rgba(40, 30, 80, 0.12); }
+.seg, .radios { background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 1px 2px rgba(40, 30, 80, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.3); }
+.seg-btn[aria-pressed="true"], .radios input:checked + label { background: rgba(255, 255, 255, 0.4); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 0 10px rgba(255, 255, 255, 0.3), 0 2px 8px rgba(40, 30, 80, 0.14); }
+.input { background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+dialog { background: rgba(255, 255, 255, 0.28); -webkit-backdrop-filter: blur(24px) saturate(2.1); backdrop-filter: blur(24px) saturate(2.1); }
+.toast, .tt { background: rgba(255, 255, 255, 0.3); }
+.pill.calib, .pill.none { background: rgba(255, 255, 255, 0.2); }
+.tile[aria-pressed="true"] { box-shadow: inset 0 1px 0 var(--g-hi), inset 0 0 0 1.5px var(--accent), inset 0 0 26px var(--g-glow), 0 18px 40px var(--g-drop); }
+@media (prefers-color-scheme: dark) {
+  .panel::after, .list::after, .hairgrid > *::after, .topbar-inner::after, dialog::after, .toast::after { opacity: 0.75; }
+  .btn-primary { color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 0 18px rgba(255, 255, 255, 0.12), 0 10px 24px color-mix(in srgb, var(--accent) 28%, transparent); }
+  .btn-danger-solid { color: #fff; }
+  .topnav a[aria-current="page"] { background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36), inset 0 0 12px rgba(255, 255, 255, 0.08); }
+  .seg, .radios { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+  .seg-btn[aria-pressed="true"], .radios input:checked + label { background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.08); }
+  .input { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.2); }
+  dialog { background: rgba(255, 255, 255, 0.07); }
+  .toast, .tt { background: rgba(255, 255, 255, 0.09); }
+  .pill.calib, .pill.none { background: rgba(255, 255, 255, 0.08); }
+}
+
 /* ---------- Motion preferences ------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
-  body::before { animation: none !important; }
+  body::before, body::after { animation: none !important; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
