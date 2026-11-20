@@ -270,6 +270,28 @@ python3 -m http.server 8000
 
 Then visit <http://localhost:8000>.
 
+## Private hosting (password lock)
+
+GitHub Pages is public file hosting, so Herd locks itself: `docs/index.html` is
+the whole app, encrypted with a password (PBKDF2 → AES-256-GCM). Visitors see a
+login box; the app only decrypts in the browser when the password is right.
+
+- **Serve it:** Settings → Pages → Source **Deploy from a branch**, branch
+  `main`, folder **`/docs`**.
+- **Change the password or rebuild after editing the app:**
+
+  ```bash
+  HERD_PASSWORD='a long passphrase' node tools/lock.mjs
+  ```
+
+  Then commit `docs/index.html`. The password is never written to disk.
+- **Limits:** this keeps casual visitors out of your copy. It does not hide the
+  source code in this repository; make the repo private for that (note that
+  GitHub's free plan can't serve Pages from a private repo). A guessed or weak
+  password can be attacked offline, so use a long random one.
+- Records are stored per browser either way, so each device starts empty. Use
+  Export and Import to move data.
+
 ## Deploy to GitHub Pages
 
 Herd is already shaped for Pages: `index.html` is at the repository root,
