@@ -20,7 +20,10 @@
   <header class="topbar">
     <div class="container topbar-inner">
       <a class="wordmark" href="#/" aria-label="Herd, go to overview">HERD</a>
-      <span class="topbar-tag">Lifecycle records</span>
+      <nav class="topnav" aria-label="Primary">
+        <a href="#/" data-nav="overview">Subjects</a>
+        <a href="#/env" data-nav="env">Environment</a>
+      </nav>
       <nav class="topbar-actions" aria-label="Data">
         <button type="button" class="btn btn-quiet" data-action="import">Import</button>
         <button type="button" class="btn btn-quiet" data-action="export">Export</button>
@@ -36,7 +39,11 @@
     <div class="container footer-inner">
       <span>Records are stored in this browser only. Export regularly to back them up.</span>
       <span class="mono" id="last-export">Last export: never</span>
-      <button type="button" class="link-btn" data-action="reset">Reset sample data</button>
+      <span class="footer-actions">
+        <button type="button" class="link-btn footer-data" data-action="import">Import</button>
+        <button type="button" class="link-btn footer-data" data-action="export">Export</button>
+        <button type="button" class="link-btn" data-action="reset">Reset sample data</button>
+      </span>
     </div>
   </footer>
 
@@ -49,7 +56,11 @@
   <script src="assets/js/store.js"></script>
   <script src="assets/js/baseline.js"></script>
   <script src="assets/js/charts.js"></script>
+  <script src="assets/js/env-store.js"></script>
+  <script src="assets/js/environment.js"></script>
+  <script src="assets/js/sensors.js"></script>
   <script src="assets/js/views.js"></script>
+  <script src="assets/js/env-views.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>

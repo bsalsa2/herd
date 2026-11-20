@@ -225,6 +225,8 @@
         meta: { nextSeq: data.meta.nextSeq },
         subjects: data.subjects,
         entries: data.entries.slice().sort((a, b) => (a.subjectId === b.subjectId ? byDate(a, b) : a.subjectId < b.subjectId ? -1 : 1)),
+        // Spaces, sensors (without access tokens), needs, and 14 days of readings.
+        environment: H.envStore ? H.envStore.exportPart() : undefined,
       };
     },
 

@@ -89,6 +89,7 @@
           ${tile('flag', 'Flag', counts.flag)}
         </div>
         ${list}
+        ${H.envViews.overviewSummary()}
       </section>`,
     };
   }
@@ -163,6 +164,7 @@
       </header>
 
       ${signalPanel(st)}
+      ${H.envViews.subjectPanel(s)}
       ${baselinePanel(a)}
 
       <section class="section" aria-labelledby="trends-h">
@@ -576,7 +578,7 @@
           <div class="field">
             <label for="sf-species">Species</label>
             <input class="input" id="sf-species" name="species" maxlength="40" list="sf-species-list" value="${esc(s ? s.species : 'Dog')}" autocomplete="off">
-            <datalist id="sf-species-list"><option value="Dog"><option value="Cat"><option value="Horse"><option value="Cow"><option value="Goat"><option value="Sheep"><option value="Pig"><option value="Rabbit"></datalist>
+            <datalist id="sf-species-list"><option value="Dog"><option value="Cat"><option value="Horse"><option value="Cow"><option value="Goat"><option value="Sheep"><option value="Pig"><option value="Rabbit"><option value="Chicken"></datalist>
           </div>
           <div class="field">
             <label for="sf-breed">Breed</label>

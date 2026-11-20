@@ -9,6 +9,9 @@
   const V = H.views;
   const B = H.baseline;
   const C = H.charts;
+  const ES = H.envStore;
+  const EV = H.envViews;
+  const SN = H.sensors;
 
   const main = document.getElementById('main');
   const dlg = document.getElementById('dialog');
@@ -37,6 +40,7 @@
 
   function parseRoute() {
     const h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+    if (/^env\/?$/i.test(h)) return { name: 'env', id: null };
     const m = h.match(/^s\/(HRD-\d{4,})$/i);
     return m ? { name: 'subject', id: m[1].toUpperCase() } : { name: 'overview', id: null };
   }
@@ -54,14 +58,22 @@
     current = r;
 
     C.reset();
-    const view = r.name === 'subject' ? V.subject(state, r.id) : V.overview(state);
+    let view;
+    if (r.name === 'subject') view = V.subject(state, r.id);
+    else if (r.name === 'env') view = EV.envPage();
+    else view = V.overview(state);
     main.innerHTML = view.html;
+    document.querySelectorAll('[data-nav]').forEach((a) => {
+      const on = a.dataset.nav === (r.name === 'env' ? 'env' : 'overview');
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
     document.title = view.title;
     if (changed) {
       const el = main.firstElementChild;
       if (el) el.classList.add('enter');
     }
     if (view.mount) view.mount(main);
+    main.querySelectorAll('[data-live]').forEach((el) => { el.__html = el.innerHTML; });
     main.querySelectorAll('form[data-form="entry"]').forEach(V.updatePreview);
     renderFooter();
 
@@ -81,6 +93,43 @@
     const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     lastExportEl.textContent = `Last export: ${U.fmtDate(iso)} (${U.fmtAgo(iso)})`;
   }
+
+  /* ---------- Live sensor updates --------------------------------------
+     Only [data-live] blocks re-render, never whole pages, so an entry being
+     typed on a subject page is never wiped by an incoming reading. Focus is
+     restored, and a block is skipped while the pointer is reading a chart. */
+
+  let liveTimer = 0;
+  function scheduleLive() {
+    if (liveTimer) return;
+    liveTimer = setTimeout(() => { liveTimer = 0; refreshLive(); }, 1200);
+  }
+
+  function focusKey(el) {
+    if (!el || !el.dataset) return null;
+    const d = el.dataset;
+    return [d.action, d.id, d.chart, d.unit].join('|');
+  }
+
+  function refreshLive() {
+    main.querySelectorAll('[data-live]').forEach((el) => {
+      if (el.querySelector('.chart:hover, .chart:focus')) return; // don't yank a tooltip mid-read
+      const res = EV.live(el.dataset.live);
+      if (!res || res.html === el.__html) return;
+      const active = el.contains(document.activeElement) ? focusKey(document.activeElement) : null;
+      C.unmountWithin(el);
+      el.innerHTML = res.html;
+      el.__html = res.html;
+      if (res.mount) res.mount(el);
+      if (active) {
+        const again = Array.from(el.querySelectorAll('[data-action], [data-chart]')).find((n) => focusKey(n) === active);
+        if (again) again.focus({ preventScroll: true });
+      }
+    });
+  }
+
+  SN.onUpdate(scheduleLive);
+  setInterval(refreshLive, 30000); // ages "2 min ago" labels and staleness
 
   /* ---------- Toast ------------------------------------------------------ */
 
@@ -115,6 +164,9 @@
   }
 
   dlg.addEventListener('close', () => {
+    // 'close' fires asynchronously. If a new dialog opened in the meantime
+    // (edit → confirm delete), this event belongs to the old one: ignore it.
+    if (dlg.open) return;
     if (resolveConfirm) {
       const r = resolveConfirm;
       resolveConfirm = null;
@@ -201,6 +253,7 @@
     });
     if (!ok) return;
     S.deleteSubject(id);
+    ES.forgetSubject(id);
     navigate('#/');
     toast(`${id} deleted`);
   }
@@ -252,6 +305,183 @@
     toast(`Entry ${U.fmtDate(e.date)} deleted`);
   }
 
+  /* ---------- Environment: spaces, sensors, needs ----------------------- */
+
+  function setError(form, msgs) {
+    const out = form.querySelector('[data-error]');
+    if (out) out.textContent = msgs.join(' ');
+  }
+
+  function submitSpace(form) {
+    const { name, residents, errors } = EV.readSpaceForm(form);
+    if (errors.length) { setError(form, errors); return; }
+    const id = form.dataset.id;
+    const sp = id ? ES.space(id) : ES.createSpace(name);
+    if (id) ES.renameSpace(id, name);
+    ES.setResidents(sp.id, residents);
+    closeDialog();
+    render();
+    toast(`${sp.name} ${id ? 'updated' : 'created'} · ${residents.length} ${residents.length === 1 ? 'resident' : 'residents'}`);
+  }
+
+  async function deleteSpace(id) {
+    const sp = ES.space(id);
+    if (!sp) return;
+    closeDialog();
+    const n = ES.residentsOf(id).length;
+    const k = ES.sensorsIn(id).length;
+    const ok = await confirmDialog({
+      eyebrow: 'Delete space',
+      title: `Delete ${sp.name}?`,
+      bodyHTML: `${n} ${n === 1 ? 'animal' : 'animals'} and ${k} ${k === 1 ? 'sensor' : 'sensors'} will become unassigned. Sensors and their readings are kept.`,
+      confirmLabel: 'Delete space',
+      danger: true,
+    });
+    if (!ok) return;
+    ES.deleteSpace(id);
+    render();
+    toast(`${sp.name} deleted`);
+  }
+
+  function openSensorDialog(id, spaceId) {
+    openDialog(EV.sensorForm(id ? ES.sensor(id) : null, spaceId));
+    const form = dlg.querySelector('form[data-form="sensor"]');
+    if (form) EV.syncSensorForm(form);
+  }
+
+  function submitSensor(form) {
+    const { fields, errors } = EV.readSensorForm(form);
+    if (errors.length) { setError(form, errors); return; }
+    const id = form.dataset.id;
+    let s;
+    if (id) {
+      const prev = ES.sensor(id);
+      // A blank token field on edit keeps the stored token.
+      if (fields.kind === 'http' && !fields.config.token && prev.config.token && form.elements.token.value === '') fields.config.token = prev.config.token;
+      s = ES.updateSensor(id, fields);
+    } else {
+      s = ES.createSensor(fields);
+    }
+    closeDialog();
+    if (!s) { toast('Could not save sensor', 'flag'); return; }
+    SN.sync();
+    render();
+    toast(`${s.id} ${id ? 'saved' : 'added'} · ${EV.KIND[s.kind].label}`);
+  }
+
+  async function removeSensor(id) {
+    const s = ES.sensor(id);
+    if (!s) return;
+    const n = ES.readingCount(id);
+    const ok = await confirmDialog({
+      eyebrow: 'Remove sensor',
+      title: `Remove ${s.name}?`,
+      bodyHTML: `This disconnects <span class="mono">${U.esc(s.id)}</span> and deletes its ${n} stored ${n === 1 ? 'reading' : 'readings'}. The ID will not be reused.`,
+      confirmLabel: 'Remove sensor',
+      danger: true,
+    });
+    if (!ok) return;
+    ES.deleteSensor(id);
+    SN.sync();
+    render();
+    toast(`${s.id} removed`);
+  }
+
+  function toggleSensor(id) {
+    const s = ES.sensor(id);
+    if (!s) return;
+    ES.setEnabled(id, !s.enabled);
+    SN.sync();
+    render();
+    toast(`${s.name} ${s.enabled ? 'paused' : 'resumed'}`);
+  }
+
+  async function readSensor(id) {
+    try {
+      await SN.readNow(id);
+      toast('Reading taken');
+    } catch (err) {
+      toast(err.message || 'Read failed', 'flag');
+    }
+    refreshLive();
+  }
+
+  async function connectSensor(id) {
+    try {
+      await SN.reconnectBle(id);
+      toast('Connected');
+    } catch (err) {
+      if (err && err.name === 'NotFoundError') return; // user closed the picker
+      toast(err.message || 'Could not connect', 'flag');
+    }
+    refreshLive();
+  }
+
+  function submitManual(form) {
+    const s = ES.sensor(form.dataset.id);
+    if (!s) return;
+    const { at, values, errors } = EV.readManualForm(form, s);
+    if (errors.length) { setError(form, errors); return; }
+    ES.addReading(s.id, values, at);
+    ES.flush();
+    closeDialog();
+    render();
+    toast(`Reading saved · ${s.name}`);
+  }
+
+  function submitNeeds(form) {
+    const { spaceId, needs, errors } = EV.readNeedsForm(form);
+    if (errors.length) { setError(form, errors); return; }
+    const id = form.dataset.id;
+    ES.setSpaceOf(id, spaceId);
+    ES.setNeeds(id, needs);
+    closeDialog();
+    render();
+    toast(`${id} needs saved`);
+  }
+
+  async function pairInDialog(btn) {
+    const form = btn.closest('form');
+    try {
+      const dev = await SN.pairBle();
+      form.elements.deviceId.value = dev.id;
+      form.elements.deviceName.value = dev.name;
+      form.querySelector('[data-pair-label]').textContent = `Paired: ${dev.name}`;
+      if (!form.elements.name.value.trim()) form.elements.name.value = dev.name;
+      setError(form, []);
+    } catch (err) {
+      if (err && err.name === 'NotFoundError') return;
+      setError(form, [err.message || 'Pairing failed.']);
+    }
+  }
+
+  async function testHttp(btn) {
+    const form = btn.closest('form');
+    const out = form.querySelector('[data-test-result]');
+    const { fields, errors } = EV.readSensorForm(form);
+    const blocking = errors.filter((e) => /URL|measurement/.test(e));
+    if (blocking.length) { out.className = 'test-result t-flag'; out.textContent = blocking.join(' '); return; }
+    if (!fields.config.token && form.dataset.id) {
+      const prev = ES.sensor(form.dataset.id);
+      if (prev && prev.config.token) fields.config.token = prev.config.token;
+    }
+    out.className = 'test-result';
+    out.textContent = 'Testing…';
+    btn.disabled = true;
+    try {
+      const { values, problems } = await SN.readHttp(fields.config);
+      const v = SN.normalizeUnits({ config: fields.config }, values);
+      const u = ES.unit();
+      out.className = 'test-result t-nominal';
+      out.textContent = `OK: ${Object.keys(v).map((k) => H.env.fmtValue(k, v[k], u, true)).join(' · ')}${problems.length ? `. ${problems.join('; ')}` : ''}`;
+    } catch (err) {
+      out.className = 'test-result t-flag';
+      out.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   /* ---------- Import / export / reset ----------------------------------- */
 
   function exportData() {
@@ -289,16 +519,22 @@
     }
     const cur = S.counts();
     const next = res.data;
+    const envRes = parsed.environment ? ES.validate(parsed.environment) : null;
+    const envOk = envRes && envRes.ok;
     const skipped = res.dropped ? ` ${res.dropped} invalid ${res.dropped === 1 ? 'row was' : 'rows were'} skipped.` : '';
+    const envNote = envOk
+      ? ` Environment: ${envRes.data.spaces.length} spaces and ${envRes.data.sensors.length} sensors will also be replaced (access tokens are never in exports; re-enter them for Wi‑Fi sensors).`
+      : ' The file has no environment section, so spaces and sensors stay as they are.';
     const ok = await confirmDialog({
       eyebrow: 'Import',
       title: 'Replace current data?',
       bodyHTML: `This browser holds <span class="mono">${cur.subjects}</span> subjects and <span class="mono">${cur.entries}</span> entries. `
-        + `The file contains <span class="mono">${next.subjects.length}</span> subjects and <span class="mono">${next.entries.length}</span> entries, which will replace them.${U.esc(skipped)}`,
+        + `The file contains <span class="mono">${next.subjects.length}</span> subjects and <span class="mono">${next.entries.length}</span> entries, which will replace them.${U.esc(skipped)}${U.esc(envNote)}`,
       confirmLabel: 'Replace data',
     });
     if (!ok) return;
     S.replaceAll(next);
+    if (envOk) { ES.replace(envRes.data); SN.sync(); }
     state.filter = 'all';
     navigate('#/');
     toast(`Imported ${next.subjects.length} subjects · ${next.entries.length} entries`);
@@ -308,12 +544,14 @@
     const ok = await confirmDialog({
       eyebrow: 'Reset',
       title: 'Reset to sample data?',
-      bodyHTML: 'All subjects and entries in this browser will be replaced with the two sample subjects. Export first if you want to keep your records.',
+      bodyHTML: 'All subjects, entries, spaces and sensors in this browser will be replaced with the sample data. Export first if you want to keep your records.',
       confirmLabel: 'Reset data',
       danger: true,
     });
     if (!ok) return;
     S.resetToSample();
+    ES.resetToSample();
+    SN.sync();
     state.filter = 'all';
     navigate('#/');
     toast('Sample data restored');
@@ -343,6 +581,25 @@
       }
       case 'range': state.range = t.dataset.range; saveUI(); render(); break;
       case 'log-all': state.logAll = true; render(); break;
+      case 'unit': ES.setUnit(t.dataset.unit); render(); break;
+      case 'new-space': openDialog(EV.spaceForm(null)); break;
+      case 'edit-space': openDialog(EV.spaceForm(ES.space(id))); break;
+      case 'delete-space': deleteSpace(id); break;
+      case 'new-sensor': openSensorDialog(null, t.dataset.space); break;
+      case 'edit-sensor': openSensorDialog(id); break;
+      case 'remove-sensor': removeSensor(id); break;
+      case 'toggle-sensor': toggleSensor(id); break;
+      case 'read-sensor': readSensor(id); break;
+      case 'connect-sensor': connectSensor(id); break;
+      case 'log-reading': openDialog(EV.manualForm(ES.sensor(id)), true); break;
+      case 'edit-needs': openDialog(EV.needsForm(S.subject(id))); break;
+      case 'clear-needs': {
+        const f = t.closest('form');
+        f.querySelectorAll('.needs input, input[name="note"]').forEach((i) => { i.value = ''; });
+        break;
+      }
+      case 'ble-pair': pairInDialog(t); break;
+      case 'test-http': testHttp(t); break;
       default: break;
     }
   });
@@ -353,9 +610,15 @@
     ev.preventDefault();
     if (form.dataset.form === 'entry') submitEntry(form);
     else if (form.dataset.form === 'subject') submitSubject(form);
+    else if (form.dataset.form === 'space') submitSpace(form);
+    else if (form.dataset.form === 'sensor') submitSensor(form);
+    else if (form.dataset.form === 'manual') submitManual(form);
+    else if (form.dataset.form === 'needs') submitNeeds(form);
   });
 
   const onFormInput = (ev) => {
+    const sensorForm = ev.target.closest('form[data-form="sensor"]');
+    if (sensorForm) { EV.syncSensorForm(sensorForm); return; }
     const form = ev.target.closest('form[data-form="entry"]');
     if (!form) return;
     if (ev.target.name) {
@@ -379,11 +642,19 @@
     if (e.key === S.KEY) {
       S.load();
       if (!dlg.open) render();
+    } else if (e.key === ES.KEY) {
+      // Another tab changed sensor config. Readings from two tabs would interleave,
+      // so this tab adopts the stored state; only one tab should run sensors.
+      ES.load();
+      SN.sync();
+      scheduleLive();
     }
   });
 
   /* ---------- Boot ------------------------------------------------------- */
 
   S.load();
+  ES.load();
+  SN.sync();
   render();
 })(window.Herd = window.Herd || {});
