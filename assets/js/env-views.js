@@ -187,6 +187,36 @@
     };
   }
 
+  /* Liquid vessel: the space's temperature as a pebble of liquid. The fill is the
+     reading's position between (min - 8) and (max + 8); the dashed line is the
+     tightest maximum among residents. */
+  function vessel(a, u) {
+    const c = a.current.temp;
+    const need = a.needs.temp;
+    if (!c) return '';
+    const lo = (need && need.min != null ? need.min : 10) - 8;
+    const hi = (need && need.max != null ? need.max : 28) + 8;
+    const pct = (v) => Math.max(4, Math.min(96, ((v - lo) / (hi - lo)) * 100));
+    const over = Boolean(need && need.max != null && c.value > need.max);
+    const lvl = pct(c.value).toFixed(1);
+    const limit = need && need.max != null ? pct(need.max).toFixed(1) : null;
+    const hum = a.current.humidity;
+    const val = E.fmtValue('temp', c.value, u, false);
+    const label = `Temperature ${E.fmtValue('temp', c.value, u, true)}${need && need.max != null ? `, limit ${E.fmtValue('temp', need.max, u, true)}` : ''}`;
+    return `<div class="vessel-wrap"><div class="vessel${over ? ' is-over' : ''}" role="img" aria-label="${esc(label)}" style="--lvl:${lvl}%;${limit ? `--limit:${limit}%;` : ''}">
+      <div class="v-goo" aria-hidden="true">
+        <span class="v-body"></span>
+        <svg class="v-wave" viewBox="0 0 400 26" preserveAspectRatio="none"><path d="M0 13 Q50 1 100 13 T200 13 T300 13 T400 13 V26 H0Z"></path></svg>
+        <svg class="v-wave w2" viewBox="0 0 400 26" preserveAspectRatio="none"><path d="M0 13 Q50 25 100 13 T200 13 T300 13 T400 13 V26 H0Z"></path></svg>
+        <span class="v-dr a"></span><span class="v-dr b"></span><span class="v-dr c"></span>
+      </div>
+      <span class="v-shade" aria-hidden="true"></span><span class="v-glow" aria-hidden="true"></span>
+      ${limit ? `<span class="v-limit" aria-hidden="true"></span><span class="v-limit-label">${esc(E.fmtValue('temp', need.max, u, false))}° max</span>` : ''}
+      <span class="v-hl" aria-hidden="true"></span><span class="v-glint" aria-hidden="true"></span>
+      <div class="v-num"><b>${esc(val)}°</b>${hum ? `<small>${esc(E.fmtValue('humidity', hum.value, u, false))}% RH</small>` : ''}</div>
+    </div></div>`;
+  }
+
   function spaceCard(a) {
     const u = a.unit;
     const sp = a.space;
@@ -228,7 +258,7 @@
         </div>
       </div>
       <ul class="env-notes">${a.notes.map((n) => `<li class="t-${n.level}"><i class="dot ${n.level}"></i><span>${esc(n.text)}</span></li>`).join('')}</ul>
-      ${tiles ? `<div class="hairgrid env-metrics">${tiles}</div>` : ''}
+      ${vessel(a, u) || tiles ? `<div class="space-body">${vessel(a, u)}${tiles ? `<div class="hairgrid env-metrics">${tiles}</div>` : ''}</div>` : ''}
       ${charts ? `<div class="charts env-charts">${charts}</div>` : (a.sensors.length ? '' : '<p class="hint space-hint">No sensors in this space. <button type="button" class="link-btn" data-action="new-sensor" data-space="' + esc(sp.id) + '">Add one</button>.</p>')}
     </article>`;
   }
