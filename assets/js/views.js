@@ -293,16 +293,21 @@
     const rangeStart = range === 'all' ? recordStart : U.addDays(today, -(Number(range) - 1));
     const start = rangeStart > recordStart ? rangeStart : recordStart;
     const c = a.current && a.current.ready ? a.current : null;
-    const band = (key) => (c ? {
-      mean: c[key].mean,
-      lo: c[key].mean - c[key].sd,
-      hi: c[key].mean + c[key].sd,
-      threshold: c[key].mean * (1 - B.CONFIG.flagDrop / 100),
-    } : null);
+    // Baseline band = mean ± 1 SD; reference lines = mean and the −30% flag threshold.
+    const band = (key) => (c ? { lo: c[key].mean - c[key].sd, hi: c[key].mean + c[key].sd } : null);
+    const lines = (key) => (c ? [
+      { value: c[key].mean, kind: 'mean', label: 'μ' },
+      { value: c[key].mean * (1 - B.CONFIG.flagDrop / 100), kind: 'thr', label: `${U.MINUS}${B.CONFIG.flagDrop}%` },
+    ] : []);
     const pts = (key) => entries.filter((e) => e.date >= start).map((e) => {
       const delta = a.evals.get(e.id).deltas[key];
-      return { date: e.date, value: e[key], delta, level: B.levelForPct(delta) };
+      return { t: U.parseISO(e.date), value: e[key], delta, level: B.levelForPct(delta) };
     });
+    const common = {
+      t0: U.parseISO(start), t1: U.parseISO(today),
+      xTicks: C.dayTicks, xLabel: C.dayLabel, gapMs: 2 * U.DAY_MS,
+    };
+    const mean = (key) => (c ? `Baseline mean ${U.fmtNum(c[key].mean, 1)}.` : '');
 
     const actPts = pts('activity');
     const actBand = band('activity');
@@ -310,14 +315,14 @@
     const actTicks = C.niceTicks(actMax, 3);
 
     return {
-      energy: {
-        label: 'Energy', unit: '/ 5', start, end: today,
-        points: pts('energy'), domain: [1, 5], ticks: [1, 3, 5], band: band('energy'),
-      },
-      activity: {
-        label: 'Activity', unit: 'min', start, end: today,
-        points: actPts, domain: [0, actTicks[actTicks.length - 1]], ticks: actTicks, band: actBand,
-      },
+      energy: Object.assign({}, common, {
+        label: 'Energy', unit: '/ 5', ariaExtra: mean('energy'),
+        points: pts('energy'), domain: [1, 5], ticks: [1, 3, 5], band: band('energy'), lines: lines('energy'),
+      }),
+      activity: Object.assign({}, common, {
+        label: 'Activity', unit: 'min', ariaExtra: mean('activity'),
+        points: actPts, domain: [0, actTicks[actTicks.length - 1]], ticks: actTicks, band: actBand, lines: lines('activity'),
+      }),
     };
   }
 

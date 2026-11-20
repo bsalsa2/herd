@@ -1,32 +1,75 @@
 /* Herd · SVG charts
    Hand-rolled, dependency-free. Charts render at the container's real pixel
-   width (not a stretched viewBox) so 1px lines stay 1px, and redraw on resize. */
+   width (not a stretched viewBox) so 1px lines stay 1px, and redraw on resize.
+   The x-axis is plain milliseconds, so the same engine draws daily records
+   and 24-hour sensor series. */
 (function (H) {
   'use strict';
 
   const U = H.util;
   const DAY = U.DAY_MS;
+  const HOUR = 3600000;
 
   const f1 = (n) => (Math.round(n * 10) / 10).toString();
   const crisp = (n) => Math.round(n) + 0.5;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-  /* "Nice" axis for a 0-based metric: 0, step, 2·step … >= max, ~3 intervals. */
-  function niceTicks(max, intervals) {
+  /* Nice ticks for any [lo, hi]: ~`intervals` steps on 1/2/2.5/5 × 10^n. */
+  function niceScale(lo, hi, intervals) {
     const count = intervals || 3;
-    const top = Math.max(max, 1);
-    const raw = top / count;
+    let a = lo;
+    let b = hi;
+    if (!(b > a)) { a -= 1; b += 1; }
+    const raw = (b - a) / count;
     const mag = Math.pow(10, Math.floor(Math.log10(raw)));
     const r = raw / mag;
     const step = (r <= 1 ? 1 : r <= 2 ? 2 : r <= 2.5 ? 2.5 : r <= 5 ? 5 : 10) * mag;
+    const start = Math.floor(a / step) * step;
+    const end = Math.ceil(b / step) * step;
     const ticks = [];
-    for (let v = 0; v <= top + step * 0.999; v += step) ticks.push(Math.round(v * 100) / 100);
-    if (ticks[ticks.length - 1] < top) ticks.push(ticks[ticks.length - 1] + step);
-    return ticks;
+    for (let v = start; v <= end + step * 0.001; v += step) ticks.push(Math.round(v * 1000) / 1000);
+    return { ticks, domain: [ticks[0], ticks[ticks.length - 1]] };
   }
 
-  /* Sparkline: index-spaced, fixed domain, a dotted baseline-mean hairline,
-     and the latest point marked in the subject's status color. */
+  /* 0-based variant used by activity minutes. */
+  function niceTicks(max, intervals) {
+    return niceScale(0, Math.max(max, 1), intervals).ticks;
+  }
+
+  /* x-tick helpers ---------------------------------------------------------- */
+
+  function dayTicks(t0, t1, iw) {
+    const spanDays = Math.round((t1 - t0) / DAY);
+    const n = Math.min(spanDays + 1, iw < 300 ? 3 : iw < 520 ? 4 : 5);
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const t = t0 + Math.round((k * spanDays) / Math.max(1, n - 1)) * DAY;
+      if (!out.includes(t)) out.push(t);
+    }
+    return out;
+  }
+
+  function hourTicks(t0, t1, iw) {
+    const span = (t1 - t0) / HOUR;
+    const step = span <= 12 ? 3 : iw < 300 ? 12 : 6;
+    const d = new Date(t0);
+    d.setMinutes(0, 0, 0);
+    const out = [];
+    for (let t = d.getTime(); t <= t1; t += HOUR) {
+      if (t >= t0 && new Date(t).getHours() % step === 0) out.push(t);
+    }
+    return out;
+  }
+
+  const dayLabel = (t) => U.fmtDate(U.toISO(t));
+  function hourLabel(t) {
+    const d = new Date(t);
+    if (d.getHours() === 0) return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}`;
+    return `${String(d.getHours()).padStart(2, '0')}:00`;
+  }
+
+  /* Sparkline: index-spaced, fixed domain, a dotted reference hairline, and the
+     latest point marked in the status color. */
   function sparkline(values, opts) {
     const o = opts || {};
     const w = o.width || 96;
@@ -44,11 +87,11 @@
     const x = (i) => (n === 1 ? w - pad : pad + (i * (w - pad * 2)) / (n - 1));
     const y = (v) => h - pad - ((clamp(v, lo, hi) - lo) / (hi - lo)) * (h - pad * 2);
     const d = values.map((v, i) => `${i ? 'L' : 'M'}${f1(x(i))} ${f1(y(v))}`).join('');
-    const mean = o.mean != null ? `<line class="spark-mean" x1="0" x2="${w}" y1="${f1(y(o.mean))}" y2="${f1(y(o.mean))}"/>` : '';
+    const ref = o.mean != null ? `<line class="spark-mean" x1="0" x2="${w}" y1="${f1(y(o.mean))}" y2="${f1(y(o.mean))}"/>` : '';
     const level = o.level === 'flag' || o.level === 'watch' ? o.level : '';
 
     return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}">`
-      + `${mean}<path class="spark-line" d="${d}"/>`
+      + `${ref}<path class="spark-line" d="${d}"/>`
       + `<circle class="spark-dot ${level}" cx="${f1(x(n - 1))}" cy="${f1(y(values[n - 1]))}" r="2.25"/></svg>`;
   }
 
@@ -66,10 +109,15 @@
     : null;
 
   /* cfg: {
-       points: [{ date, value, level, delta }],   sorted by date
-       start, end: ISO dates for the x-range
-       domain: [min, max], ticks: [..]
-       band: { mean, lo, hi, threshold } | null
+       points: [{ t, value, level?, delta?, tag?: { text, level } }]   sorted by t
+       t0, t1             x-range in ms
+       xTicks(t0,t1,iw)   tick positions;  xLabel(t)  tick text
+       tipTitle(p)        tooltip heading
+       gapMs              break the line across gaps longer than this
+       domain, ticks      y scale
+       band: { lo, hi }   shaded reference zone (optional)
+       lines: [{ value, kind: 'mean'|'thr'|'edge', label }]   reference lines
+       dots: true|false   per-point markers (auto-thinned when dense)
        unit, label, format(v)
      } */
   function mount(el, cfg) {
@@ -77,6 +125,14 @@
     el.__herdW = Math.floor(el.clientWidth);
     draw(el);
     if (ro && !observed.has(el)) { ro.observe(el); observed.add(el); }
+  }
+
+  function unmount(el) {
+    if (ro && observed.has(el)) { ro.unobserve(el); observed.delete(el); }
+  }
+
+  function unmountWithin(root) {
+    for (const el of Array.from(observed)) if (root.contains(el)) unmount(el);
   }
 
   function reset() {
@@ -90,19 +146,17 @@
 
     const W = Math.max(220, Math.floor(el.clientWidth));
     const Hh = Math.max(120, Math.floor(el.clientHeight) || 188);
-    const m = { t: 12, r: 38, b: 24, l: 32 };
+    const m = { t: 12, r: 40, b: 24, l: 36 };
     const iw = W - m.l - m.r;
     const ih = Hh - m.t - m.b;
 
-    let t0 = U.parseISO(cfg.start);
-    const t1 = U.parseISO(cfg.end);
-    if (t1 - t0 < DAY) t0 = t1 - DAY;
-
-    const X = (iso) => m.l + ((U.parseISO(iso) - t0) / (t1 - t0)) * iw;
+    const t1 = cfg.t1;
+    const t0 = Math.min(cfg.t0, t1 - 1);
+    const X = (t) => m.l + ((t - t0) / (t1 - t0)) * iw;
     const [d0, d1] = cfg.domain;
     const Y = (v) => m.t + ih - ((clamp(v, d0, d1) - d0) / (d1 - d0)) * ih;
     const fmt = cfg.format || ((v) => String(v));
-    const pts = cfg.points.filter((p) => p.date >= U.toISO(t0) && p.date <= cfg.end);
+    const pts = cfg.points.filter((p) => p.t >= t0 && p.t <= t1);
     const out = [];
 
     // Gridlines and y labels
@@ -112,65 +166,58 @@
       out.push(`<line x1="${m.l}" x2="${m.l + iw}" y1="${y}" y2="${y}"/>`);
     });
     out.push('</g><g class="ch-axis">');
-    cfg.ticks.forEach((v) => out.push(`<text x="${m.l - 8}" y="${f1(Y(v) + 3.5)}" text-anchor="end">${fmt(v)}</text>`));
+    cfg.ticks.forEach((v) => out.push(`<text x="${m.l - 8}" y="${f1(Y(v) + 3.5)}" text-anchor="end">${U.esc(fmt(v))}</text>`));
 
-    // X labels: evenly spaced whole days
-    const spanDays = Math.round((t1 - t0) / DAY);
-    const nTicks = Math.min(spanDays + 1, iw < 300 ? 3 : iw < 520 ? 4 : 5);
-    const seen = new Set();
-    for (let k = 0; k < nTicks; k++) {
-      const day = Math.round((k * spanDays) / Math.max(1, nTicks - 1));
-      const iso = U.toISO(t0 + day * DAY);
-      if (seen.has(iso)) continue;
-      seen.add(iso);
-      const anchor = k === 0 ? 'start' : k === nTicks - 1 ? 'end' : 'middle';
-      out.push(`<text x="${f1(X(iso))}" y="${Hh - 6}" text-anchor="${anchor}">${U.fmtDate(iso)}</text>`);
-    }
+    // x labels
+    const xt = (cfg.xTicks || dayTicks)(t0, t1, iw);
+    const xl = cfg.xLabel || dayLabel;
+    xt.forEach((t) => {
+      const x = X(t);
+      const anchor = x < m.l + 24 ? 'start' : x > m.l + iw - 24 ? 'end' : 'middle';
+      out.push(`<text x="${f1(x)}" y="${Hh - 6}" text-anchor="${anchor}">${U.esc(xl(t))}</text>`);
+    });
     out.push('</g>');
 
-    // Baseline band (mean ± 1 SD), mean line, flag threshold
+    // Reference band and lines
     if (cfg.band) {
-      const b = cfg.band;
-      const yHi = Y(Math.min(b.hi, d1));
-      const yLo = Y(Math.max(b.lo, d0));
-      out.push(`<rect class="ch-band" x="${m.l}" y="${f1(yHi)}" width="${iw}" height="${f1(Math.max(1, yLo - yHi))}"/>`);
-      const ym = crisp(Y(b.mean));
-      out.push(`<line class="ch-mean" x1="${m.l}" x2="${m.l + iw}" y1="${ym}" y2="${ym}"/>`);
-      out.push(`<text class="ch-mean-label" x="${m.l + iw + 6}" y="${f1(ym + 3)}">μ</text>`);
-      if (b.threshold >= d0 && b.threshold <= d1) {
-        const yt = crisp(Y(b.threshold));
-        out.push(`<line class="ch-thr" x1="${m.l}" x2="${m.l + iw}" y1="${yt}" y2="${yt}"/>`);
-        out.push(`<text class="ch-thr-label" x="${m.l + iw + 6}" y="${f1(yt + 3)}">${U.MINUS}30%</text>`);
-      }
+      const yHi = Y(Math.min(cfg.band.hi, d1));
+      const yLo = Y(Math.max(cfg.band.lo, d0));
+      if (yLo > yHi) out.push(`<rect class="ch-band" x="${m.l}" y="${f1(yHi)}" width="${iw}" height="${f1(yLo - yHi)}"/>`);
     }
+    (cfg.lines || []).forEach((ln) => {
+      if (!(ln.value >= d0 && ln.value <= d1)) return;
+      const y = crisp(Y(ln.value));
+      out.push(`<line class="ch-${ln.kind}" x1="${m.l}" x2="${m.l + iw}" y1="${y}" y2="${y}"/>`);
+      if (ln.label) out.push(`<text class="ch-${ln.kind}-label" x="${m.l + iw + 6}" y="${f1(y + 3)}">${U.esc(ln.label)}</text>`);
+    });
 
-    // Series: break the line across gaps longer than 2 days
-    const px = pts.map((p) => Object.assign({}, p, { x: X(p.date), y: Y(p.value) }));
+    // Series
+    const px = pts.map((p) => Object.assign({}, p, { x: X(p.t), y: Y(p.value) }));
     if (px.length) {
+      const gap = cfg.gapMs || 2 * DAY;
       let d = '';
       px.forEach((p, i) => {
-        const gap = i ? U.daysBetween(px[i - 1].date, p.date) : 0;
-        d += `${!i || gap > 2 ? 'M' : 'L'}${f1(p.x)} ${f1(p.y)}`;
+        d += `${!i || p.t - px[i - 1].t > gap ? 'M' : 'L'}${f1(p.x)} ${f1(p.y)}`;
       });
       out.push(`<path class="ch-line" d="${d}"/>`);
-      const dense = px.length > 60;
-      px.forEach((p) => {
-        const off = p.level === 'flag' || p.level === 'watch';
-        if (dense && !off) return;
-        out.push(`<circle class="ch-pt ${off ? p.level : ''}" cx="${f1(p.x)}" cy="${f1(p.y)}" r="${off ? 3 : 2.25}"/>`);
-      });
+      if (cfg.dots !== false) {
+        const dense = px.length > 60;
+        px.forEach((p) => {
+          const off = p.level === 'flag' || p.level === 'watch';
+          if (dense && !off) return;
+          out.push(`<circle class="ch-pt ${off ? p.level : ''}" cx="${f1(p.x)}" cy="${f1(p.y)}" r="${off ? 3 : 2.25}"/>`);
+        });
+      }
     } else {
-      out.push(`<text class="ch-empty" x="${m.l + iw / 2}" y="${m.t + ih / 2}" text-anchor="middle">No entries in range</text>`);
+      out.push(`<text class="ch-empty" x="${m.l + iw / 2}" y="${m.t + ih / 2}" text-anchor="middle">No readings in range</text>`);
     }
 
     out.push(`<line class="ch-cross" x1="0" x2="0" y1="${m.t}" y2="${m.t + ih}"/>`);
     out.push('<circle class="ch-focus" cx="0" cy="0" r="5"/>');
 
-    const meanTxt = cfg.band ? ` Baseline mean ${fmt(Math.round(cfg.band.mean * 10) / 10)}${cfg.unit ? ' ' + cfg.unit : ''}.` : '';
-    const aria = `${cfg.label}: ${pts.length} entries, ${U.fmtDate(U.toISO(t0))} to ${U.fmtDate(cfg.end)}.${meanTxt} Use arrow keys to read values.`;
-
+    const aria = `${cfg.label}: ${pts.length} points, ${xl(t0)} to ${xl(t1)}.${cfg.ariaExtra ? ' ' + cfg.ariaExtra : ''} Use arrow keys to read values.`;
     el.innerHTML = `<svg width="${W}" height="${Hh}" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${U.esc(aria)}">${out.join('')}</svg><div class="tt" aria-hidden="true"></div>`;
-    bind(el, px, { W, m, ih, cfg, fmt });
+    bind(el, px, { W, cfg, fmt });
   }
 
   /* Crosshair + tooltip: pointer, touch (tap), and keyboard (arrow keys). */
@@ -179,6 +226,7 @@
     const tt = el.lastElementChild;
     const cross = svg.querySelector('.ch-cross');
     const focus = svg.querySelector('.ch-focus');
+    const title = ctx.cfg.tipTitle || ((p) => `${U.fmtWeekday(U.toISO(p.t))} ${U.fmtDate(U.toISO(p.t))}`);
     let idx = -1;
 
     function show(i) {
@@ -193,9 +241,11 @@
       focus.setAttribute('cy', f1(p.y));
       focus.style.opacity = '1';
       const unit = ctx.cfg.unit ? ` ${ctx.cfg.unit}` : '';
-      const delta = p.delta != null ? ` <b class="${p.level || ''}">${U.fmtPct(p.delta)}</b>` : '';
-      tt.innerHTML = `<span class="tt-d">${U.fmtWeekday(p.date)} ${U.fmtDate(p.date)}</span>${U.esc(ctx.fmt(p.value))}${unit}${delta}`;
-      tt.style.left = `${clamp(p.x, 56, ctx.W - 56)}px`;
+      let extra = '';
+      if (p.delta != null) extra = ` <b class="${p.level || ''}">${U.fmtPct(p.delta)}</b>`;
+      else if (p.tag) extra = ` <b class="${p.tag.level || ''}">${U.esc(p.tag.text)}</b>`;
+      tt.innerHTML = `<span class="tt-d">${U.esc(title(p))}</span>${U.esc(ctx.fmt(p.value))}${U.esc(unit)}${extra}`;
+      tt.style.left = `${clamp(p.x, 64, ctx.W - 64)}px`;
       tt.style.top = `${p.y}px`;
       tt.classList.toggle('below', p.y < 56);
       tt.classList.add('on');
@@ -226,13 +276,17 @@
     el.onblur = hide;
     el.onkeydown = (e) => {
       if (!px.length) return;
-      if (e.key === 'ArrowRight') { show(idx < 0 ? px.length - 1 : Math.min(px.length - 1, idx + 1)); e.preventDefault(); }
-      else if (e.key === 'ArrowLeft') { show(idx < 0 ? px.length - 1 : Math.max(0, idx - 1)); e.preventDefault(); }
+      const step = px.length > 60 ? 6 : 1;
+      if (e.key === 'ArrowRight') { show(idx < 0 ? px.length - 1 : Math.min(px.length - 1, idx + step)); e.preventDefault(); }
+      else if (e.key === 'ArrowLeft') { show(idx < 0 ? px.length - 1 : Math.max(0, idx - step)); e.preventDefault(); }
       else if (e.key === 'Home') { show(0); e.preventDefault(); }
       else if (e.key === 'End') { show(px.length - 1); e.preventDefault(); }
       else if (e.key === 'Escape') hide();
     };
   }
 
-  H.charts = { sparkline, mount, reset, niceTicks };
+  H.charts = {
+    sparkline, mount, unmount, unmountWithin, reset,
+    niceTicks, niceScale, dayTicks, hourTicks, dayLabel, hourLabel,
+  };
 })(window.Herd = window.Herd || {});
