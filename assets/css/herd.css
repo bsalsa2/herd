@@ -1780,25 +1780,6 @@ dialog::backdrop { background: rgba(30, 24, 60, 0.28); -webkit-backdrop-filter: 
   }
 }
 
-/* crisp shapes behind the page, so the glass has edges to bend */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 80% 16%, var(--disc-a) 0 10%, transparent 10.4%),
-    radial-gradient(circle at 12% 60%, var(--disc-b) 0 12%, transparent 12.4%),
-    radial-gradient(circle at 72% 84%, var(--disc-c) 0 9%, transparent 9.4%);
-  filter: blur(2px);
-  animation: ambient2 70s ease-in-out infinite alternate;
-}
-@keyframes ambient2 {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-3%, 2.5%, 0) scale(1.04); }
-}
-
 .panel, .list, .hairgrid > *, .topbar-inner, dialog, .toast, .btn, .tt {
   -webkit-backdrop-filter: var(--g-blur);
   backdrop-filter: var(--g-blur);
@@ -1837,7 +1818,7 @@ dialog { background: rgba(255, 255, 255, 0.28); -webkit-backdrop-filter: blur(24
 /* ---------- Motion preferences ------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
-  body::before, body::after { animation: none !important; }
+  body::before { animation: none !important; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
