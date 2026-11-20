@@ -1,6 +1,5 @@
 # Herd
 
-**Live site:** <https://bsalsa2.github.io/herd/> · **App:** <https://bsalsa2.github.io/herd/app.html>
 
 Herd keeps a continuous lifecycle record for each individual animal. Every
 subject has a profile of daily entries, and Herd flags when an animal deviates
@@ -261,7 +260,7 @@ you first.
 
 ## Run it locally
 
-Open `index.html` (the landing page) or `app.html` (the app) directly in a browser. Both work from `file://`.
+Open `index.html` directly in a browser. It works from `file://`.
 
 Or serve the folder, which matches GitHub Pages more closely:
 
@@ -273,7 +272,7 @@ Then visit <http://localhost:8000>.
 
 ## Deploy to GitHub Pages
 
-Herd is already shaped for Pages: the landing page `index.html` is at the repository root (the app is `app.html`),
+Herd is already shaped for Pages: `index.html` is at the repository root,
 routing uses URL hashes (`#/s/HRD-0001`) so no server rewrites are needed, and
 `.nojekyll` tells Pages to serve the files untouched.
 
@@ -339,10 +338,8 @@ Every later push to `main` redeploys automatically.
 ## Project structure
 
 ```
-index.html              Landing page
-app.html                App shell
+index.html              App shell
 .nojekyll               Serve files as-is on GitHub Pages
-assets/css/landing.css  Landing page layout
 assets/css/herd.css     Design system: tokens, light/dark, layout, components
 assets/js/util.js       Dates, formatting, escaping
 assets/js/seed.js       Sample subjects and 14 days of entries each
@@ -368,7 +365,7 @@ in dependency order, so the app also works when opened from `file://`.
 - **Accent color** — `--accent` and `--band` in `assets/css/herd.css`, once in
   `:root` and once in the dark-mode block.
 - **Fonts** — Inter and JetBrains Mono load from Google Fonts. To make zero
-  third-party requests, delete the three font `<link>` tags in `index.html` and `app.html`;
+  third-party requests, delete the three font `<link>` tags in `index.html`;
   Herd falls back to the system UI font and SF Mono / Menlo / Consolas.
 
 ## Accessibility
