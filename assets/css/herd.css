@@ -93,7 +93,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-main { flex: 1; outline: none; }
+main { flex: 1; }
+main:focus, main:focus-visible { outline: none; }
 
 h1, h2, h3, p { margin: 0; }
 
@@ -143,6 +144,9 @@ button { font: inherit; color: inherit; }
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
 }
+
+/* Greek symbols must not be uppercased: μ would become Μ and read as "M". */
+.greek { text-transform: none; letter-spacing: 0; font-size: 1.1em; }
 
 .eyebrow {
   display: inline-flex;
@@ -400,7 +404,7 @@ button { font: inherit; color: inherit; }
   transition: background-color var(--dur) var(--ease);
 }
 .tile:hover { background: var(--surface-2); }
-.tile[aria-pressed="true"] { background: var(--accent-soft); }
+.tile[aria-pressed="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
 .tile[aria-pressed="true"] .eyebrow { color: var(--accent); }
 .tile:focus-visible { outline-offset: -2px; }
 
@@ -945,7 +949,8 @@ input[type="time"].input { min-width: 0; }
 }
 .c-notes .none { color: var(--text-3); }
 
-.log .c-signal { min-width: 170px; }
+.log .c-signal { width: 240px; min-width: 200px; }
+.log .pill.nominal { background: transparent; }
 .sig-notes {
   margin: 6px 0 0;
   padding: 0;
@@ -1142,12 +1147,25 @@ dialog[open]::backdrop { animation: backdrop-in var(--dur) var(--ease); }
     text-transform: uppercase;
     color: var(--text-3);
   }
-  .log .c-date { grid-column: 1 / 3; }
-  .log .c-date::before { display: none !important; }
-  .log .c-signal { grid-column: 3 / 5; min-width: 0; text-align: right; }
+  .log tr {
+    grid-template-areas:
+      "date sig sig sig"
+      "wake intake energy activity"
+      "notes notes notes notes"
+      "actions actions actions actions";
+  }
+  .log .c-date { grid-area: date; }
+  .log .c-signal { grid-area: sig; width: auto; min-width: 0; text-align: right; }
   .log .c-signal .sig-notes { text-align: right; }
-  .log .c-notes { grid-column: 1 / -1; min-width: 0; }
-  .log .c-actions { grid-column: 1 / -1; text-align: left; margin-left: -8px; }
+  .log .c-wake { grid-area: wake; }
+  .log .c-intake { grid-area: intake; }
+  .log .c-energy { grid-area: energy; }
+  .log .c-activity { grid-area: activity; }
+  .log .c-notes { grid-area: notes; min-width: 0; }
+  .log .c-actions { grid-area: actions; text-align: left; margin-left: -8px; }
+  .log-wrap { overflow-x: visible; }
+
+  .section-head { flex-wrap: wrap; row-gap: 4px; }
 
   .dlg-head { padding: 14px 16px 0; }
   .dlg-body { padding: 14px 16px 16px; }
