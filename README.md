@@ -1,5 +1,7 @@
 # Herd
 
+**Live site:** <https://bsalsa2.github.io/herd/> · **App:** <https://bsalsa2.github.io/herd/app.html>
+
 Herd keeps a continuous lifecycle record for each individual animal. Every
 subject has a profile of daily entries, and Herd flags when an animal deviates
 from **its own** baseline — not a breed average, not a population norm.
