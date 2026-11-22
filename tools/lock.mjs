@@ -115,11 +115,11 @@ function gatePage({ salt, iv, it, ct }) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@300..700&family=Martian+Mono:wdth,wght@75..112.5,200..600&display=swap">
 <style>
-:root{--bg:#091217;--fg:#F3F0E8;--fg2:rgba(243,240,232,.64);--rule:rgba(243,240,232,.16);--flag:#FF4B2B;--nominal:#B6F03C;--sans:"Host Grotesk",ui-sans-serif,system-ui,sans-serif;--mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,monospace}
+:root{--bg:#07100B;--fg:#F2F1EC;--fg2:rgba(242,241,236,.62);--rule:rgba(242,241,236,.16);--flag:#FF4B2B;--nominal:#B6F03C;--sans:"Host Grotesk",ui-sans-serif,system-ui,sans-serif;--mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,monospace}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg)}
 body{min-height:100vh;min-height:100dvh;display:grid;grid-template-rows:auto 1fr auto;font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
-body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(60% 50% at 50% 110%,rgba(20,86,107,.55),transparent 70%),radial-gradient(40% 40% at 50% 115%,rgba(95,191,143,.18),transparent 70%)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(60% 50% at 50% 110%,rgba(232,51,90,.18),transparent 70%),radial-gradient(40% 40% at 50% 115%,rgba(255,143,31,.16),transparent 70%)}
 .top{display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px;padding:0 clamp(16px,4vw,40px);border-bottom:1px solid var(--rule)}
 .brand{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none;font-size:13px;line-height:1.15;color:var(--fg2)}
 .brand svg{width:34px;height:34px;color:var(--fg)}
@@ -127,9 +127,9 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;background:ra
 .top a.back:hover,.top a.back:focus-visible{color:var(--fg)}
 main{display:grid;place-items:center;padding:48px clamp(16px,4vw,40px)}
 form{width:min(520px,100%)}
-.tag{display:inline-block;padding:5px 11px;border:1px solid var(--rule);border-radius:999px;font:500 12px/1 var(--sans);color:var(--fg2)}
+.tag{display:inline-block;padding:4px 8px;border:1px solid var(--rule);font:500 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
 .hatch{display:inline-block;width:120px;height:9px;margin-left:12px;vertical-align:middle;background:repeating-linear-gradient(-60deg,var(--fg2) 0 1px,transparent 1px 4px);opacity:.5}
-h1{margin:22px 0 0;font:500 clamp(48px,9vw,84px)/.94 var(--sans);letter-spacing:-.055em}
+h1{margin:28px 0 0;font:300 clamp(44px,9vw,84px)/.92 var(--mono);font-variation-settings:"wdth" 100;letter-spacing:-.05em;text-transform:uppercase}
 p.lead{margin:20px 0 40px;max-width:40ch;color:var(--fg2);font-size:16px}
 label.pw{display:block;font:500 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
 input[type=password]{width:100%;height:56px;margin-top:10px;padding:0;border:0;border-bottom:1px solid var(--rule);border-radius:0;background:transparent;color:var(--fg);font:400 20px var(--mono);letter-spacing:.1em;outline:none}
@@ -157,8 +157,8 @@ button[disabled]{opacity:.6;cursor:wait}
 <main>
 <form id="f" autocomplete="on">
   <span class="tag">Owner access</span>
-  <h1>Sign in</h1>
-  <p class="lead">The records app opens in this browser when the passphrase is right.</p>
+  <h1>Internal</h1>
+  <p class="lead">Owner access only. The records app decrypts in this browser when the passphrase is right.</p>
   <input type="text" name="username" value="herd" autocomplete="username" hidden>
   <label class="pw" for="pw">Passphrase</label>
   <input id="pw" type="password" autocomplete="current-password" required autofocus>
