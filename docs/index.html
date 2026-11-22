@@ -35,10 +35,10 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
     <linearGradient id="g-heat" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#0E6E8C"/><stop offset=".4" stop-color="#5FBF8F"/><stop offset=".7" stop-color="#F4D24A"/><stop offset="1" stop-color="#FF7A2B"/>
+      <stop offset="0" stop-color="#4B0F6B"/><stop offset=".35" stop-color="#C21C6F"/><stop offset=".65" stop-color="#FF6A1F"/><stop offset="1" stop-color="#FFD23F"/>
     </linearGradient>
     <linearGradient id="g-ring" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4FA3C7"/><stop offset=".55" stop-color="#7FCBA0"/><stop offset="1" stop-color="#E7D67A"/>
+      <stop offset="0" stop-color="#B98CFF"/><stop offset=".55" stop-color="#FF8FB1"/><stop offset="1" stop-color="#FFB46B"/>
     </linearGradient>
     <symbol id="i-mark" viewBox="0 0 40 40"><circle cx="14" cy="9" r="3.6"/><circle cx="26" cy="9" r="3.6"/><circle cx="8" cy="20" r="3.6"/><circle cx="20" cy="20" r="3.6"/><circle cx="32" cy="20" r="4.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="14" cy="31" r="3.6"/><circle cx="26" cy="31" r="3.6"/></symbol>
     <symbol id="i-lock" viewBox="0 0 12 14"><rect x="1" y="6" width="10" height="7.5" rx="1" fill="currentColor"/><path d="M3.2 6V4.2a2.8 2.8 0 0 1 5.6 0V6" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
@@ -50,46 +50,45 @@
 <header class="nav" id="nav" data-tone="dark">
   <a class="brand" href="#top" aria-label="Herd, back to top">
     <svg class="mark" aria-hidden="true"><use href="#i-mark"/></svg>
-    <span class="brand-txt">Herd</span>
+    <span class="brand-txt">Herd Lifecycle<br>&amp; Environment Records</span>
   </a>
+  <div class="nav-mid">
+  <nav class="nav-index" aria-label="Sections">
+    <div class="nav-col"><a href="#problem"><i>01</i>The problem</a><a href="#baseline"><i>02</i>Baseline</a></div>
+    <div class="nav-col"><a href="#signals"><i>03</i>Signals</a><a href="#environment"><i>04</i>Environment</a></div>
+    <div class="nav-col"><a href="#species"><i>05</i>Species guide</a><a href="#sensors"><i>06</i>Sensors</a></div>
+    <div class="nav-col"><a href="#principles"><i>07</i>Principles</a><a href="#log"><i>08</i>Field log</a></div>
+  </nav>
+  <div class="nav-status" aria-hidden="true">
+    <div class="nav-cell"><small>You are in</small><span id="nav-section">Intro</span></div>
+  </div>
+  </div>
   <a class="nav-cta" href="internal/"><svg aria-hidden="true"><use href="#i-lock"/></svg><span>Owner sign-in</span></a>
 </header>
-
-<nav class="dock" id="dock" data-tone="dark" aria-label="Sections">
-  <a href="#problem">Problem</a>
-  <a href="#baseline">Baseline</a>
-  <a href="#signals">Signals</a>
-  <a href="#environment">Climate</a>
-  <a href="#species">Species</a>
-  <a href="#sensors">Sensors</a>
-  <a href="#principles">Principles</a>
-  <a href="#log">Log</a>
-</nav>
 
 <main id="main">
 
 <!-- 000 · HERO ============================================================ -->
 <section class="hero" id="top" data-tone="dark" data-name="Intro">
   <canvas class="hero-canvas" aria-hidden="true"></canvas>
+  <svg class="hero-word-static" viewBox="0 0 934 377" aria-hidden="true"><text x="-15.6" y="367.4">herd</text></svg>
+  <div class="hero-marks" aria-hidden="true"><i class="sq"></i><i>+</i><i>+</i><i>+</i></div>
   <div class="hero-meta micro" aria-hidden="true">
     <span><i class="dot dot-live"></i>Simulated field</span>
-    <span id="hm-count">— animals</span>
+    <span id="hm-count">— subjects</span>
     <span id="hm-state">—</span>
   </div>
-  <div class="hero-copy">
-    <p class="hero-kicker micro">Lifecycle &amp; environment records</p>
-    <h1 class="hero-tag"><span class="sr-only">Herd. </span>Every animal, measured against itself.</h1>
-    <p class="hero-sub">Herd keeps a daily record for each animal and tells you the day one drifts from its own normal.</p>
-    <a class="pill hero-cta" href="#problem"><span>See how it works</span><b aria-hidden="true">+</b></a>
-  </div>
+  <h1 class="hero-tag"><span class="sr-only">Herd. </span><span class="hero-tag-txt">Every animal, measured against itself.</span><span class="hatch" aria-hidden="true"></span></h1>
   <div class="probe probe-track" id="probe-track" aria-hidden="true"></div>
   <div class="probe probe-hover" id="probe-hover" aria-hidden="true"></div>
   <p class="hero-hint micro" aria-hidden="true"><span class="hint-desk">Hover the field to inspect any animal</span><span class="hint-touch">Tap the field to inspect any animal</span></p>
+  <a class="hero-scroll micro" href="#problem" aria-label="Scroll to the first section"><span>Scroll</span><i aria-hidden="true"></i></a>
 </section>
 
 <!-- 001 · PROBLEM ========================================================= -->
 <section class="sec sec-problem" id="problem" data-tone="light" data-name="The problem">
-    <div class="wrap">
+  <div class="rails" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="wrap">
     <div class="sec-head">
       <span class="pips" aria-hidden="true"><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span><span class="sec-name">The problem</span>
     </div>
@@ -136,7 +135,8 @@
     </div>
 
     <div class="answer">
-            <p class="caps-lg" data-reveal>The answer is</p>
+      <div class="rails rails-in" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p class="caps-lg" data-reveal>The answer is</p>
       <h2 class="display answer-word" data-split><span>Individual,</span></h2>
       <p class="lead answer-lead" data-reveal>a continuous, day-by-day lifecycle record that compares every entry with the same animal&rsquo;s previous 14 days, and says exactly why it raised a flag. Energy, activity, intake, wake time, behaviour and anomalies, logged in under a minute.</p>
       <a class="pill pill-wide" href="#signals" data-reveal><span>Try the live preview<br>on a real record</span><b aria-hidden="true">+</b></a>
@@ -498,35 +498,35 @@
   <div class="pr-pin">
     <div class="wrap pr-head">
       <h2 class="headline">What Herd won&rsquo;t compromise on</h2>
-      
+      <span class="micro pr-hint">Keep going &rarr;</span>
     </div>
     <div class="pr-track" id="pr-track">
-      <article class="pr-card" data-reveal>
-        <div class="pr-meta micro"><span>Principle</span><span>01 / 05</span></div>
+      <article class="pr-card">
+        <div class="pr-meta micro"><span>[ Principle ]</span><span>[ 01/05 ]</span></div>
         <blockquote><p><em>An entry is never part of its own baseline.</em> Today is compared with the days before it, so a bad day can&rsquo;t quietly lower the bar it is judged against.</p></blockquote>
         <p class="pr-src micro"><span class="pulse" aria-hidden="true"></span>assets/js/baseline.js</p>
         <span class="pr-side micro" aria-hidden="true">[ Herd &middot; Baseline engine ]</span>
       </article>
-      <article class="pr-card" data-reveal>
-        <div class="pr-meta micro"><span>Principle</span><span>02 / 05</span></div>
+      <article class="pr-card">
+        <div class="pr-meta micro"><span>[ Principle ]</span><span>[ 02/05 ]</span></div>
         <blockquote><p><em>The number in a note always agrees with the level it produced.</em> Percentages are rounded before thresholds are applied. A drop of 29.6% reads &minus;30%, and it flags.</p></blockquote>
         <p class="pr-src micro"><span class="pulse" aria-hidden="true"></span>assets/js/baseline.js</p>
         <span class="pr-side micro" aria-hidden="true">[ Herd &middot; Signals ]</span>
       </article>
-      <article class="pr-card" data-reveal>
-        <div class="pr-meta micro"><span>Principle</span><span>03 / 05</span></div>
+      <article class="pr-card">
+        <div class="pr-meta micro"><span>[ Principle ]</span><span>[ 03/05 ]</span></div>
         <blockquote><p><em>A shared space must suit every resident.</em> Herd takes the highest minimum and the lowest maximum, names the animal whose limit binds, and calls a conflict when no range works.</p></blockquote>
         <p class="pr-src micro"><span class="pulse" aria-hidden="true"></span>assets/js/environment.js</p>
         <span class="pr-side micro" aria-hidden="true">[ Herd &middot; Environment ]</span>
       </article>
-      <article class="pr-card" data-reveal>
-        <div class="pr-meta micro"><span>Principle</span><span>04 / 05</span></div>
+      <article class="pr-card">
+        <div class="pr-meta micro"><span>[ Principle ]</span><span>[ 04/05 ]</span></div>
         <blockquote><p><em>Status is never colour alone.</em> Nominal, Watch and Flag are always written out, charts read with the arrow keys, and every control is reachable from the keyboard.</p></blockquote>
         <p class="pr-src micro"><span class="pulse" aria-hidden="true"></span>README &middot; Accessibility</p>
         <span class="pr-side micro" aria-hidden="true">[ Herd &middot; Interface ]</span>
       </article>
-      <article class="pr-card" data-reveal>
-        <div class="pr-meta micro"><span>Principle</span><span>05 / 05</span></div>
+      <article class="pr-card">
+        <div class="pr-meta micro"><span>[ Principle ]</span><span>[ 05/05 ]</span></div>
         <blockquote><p><em>Nothing is sent anywhere.</em> Records live in the browser that made them. Export is the backup, and sensor access tokens are never included in it.</p></blockquote>
         <p class="pr-src micro"><span class="pulse" aria-hidden="true"></span>assets/js/store.js</p>
         <span class="pr-side micro" aria-hidden="true">[ Herd &middot; Data ]</span>
@@ -609,7 +609,7 @@
 
 <footer class="foot" data-tone="dark" data-name="Colophon">
   <div class="wrap">
-    <p class="foot-line">Every animal, measured against itself.</p>
+    <svg class="foot-word" viewBox="0 0 934 377" aria-hidden="true"><text x="-15.6" y="367.4">herd</text></svg>
     <div class="foot-grid">
       <div>
         <p class="micro">Explore</p>

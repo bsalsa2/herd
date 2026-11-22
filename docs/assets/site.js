@@ -1,8 +1,8 @@
 /* Herd · public site
    No framework, no dependencies. Each block below is one part of the page:
-   nav + dock, reveal, hero (aerial herd + thermal lens), problem dot plot,
+   nav, index, reveal, hero (aerial herd + thermal wordmark), problem dot plot,
    signals demo (Herd's real baseline rules), environment field + instruments,
-   species guide, principles, field log thumbnails, closing lines. */
+   species index, principles, field log thumbnails, closing lines. */
 (() => {
   'use strict';
 
@@ -50,7 +50,7 @@
   }
 
   /* Thermal palette, shared by the hero wordmark and the environment field. */
-  const HEAT = [[0, [6, 12, 32]], [0.18, [10, 40, 92]], [0.34, [14, 98, 142]], [0.5, [30, 152, 150]], [0.64, [122, 198, 112]], [0.78, [242, 214, 82]], [0.9, [255, 152, 60]], [1, [255, 250, 235]]];
+  const HEAT = [[0, [8, 3, 26]], [0.16, [34, 8, 72]], [0.3, [86, 14, 118]], [0.44, [158, 24, 118]], [0.57, [222, 52, 86]], [0.69, [255, 112, 34]], [0.81, [255, 186, 52]], [0.92, [255, 236, 160]], [1, [255, 255, 246]]];
   function makeLut(stops) {
     const L = new Uint8ClampedArray(256 * 3);
     for (let i = 0; i < 256; i++) {
@@ -80,35 +80,62 @@
   }, { passive: true });
 
   /* ======================================================================
-     Nav: slim header, and a bottom dock that tracks the section you are in.
-     Tone (light or dark) follows whatever is behind them.
+     Nav: compact status bar after the hero, tone follows the section below.
      ====================================================================== */
   function initNav() {
-    const nav = $('#nav'), dock = $('#dock');
-    const links = $$('a', dock);
-    const targets = links.map((a) => $(a.getAttribute('href')));
+    const nav = $('#nav'), out = $('#nav-section');
     const secs = $$('main [data-name], footer[data-name]');
-    let shown = null, active = -1;
+    let compact = null;
     const update = () => {
-      const on = scrollY > innerHeight * 0.6;
-      if (on !== shown) { shown = on; dock.classList.toggle('on', on); nav.classList.toggle('is-compact', scrollY > 40); }
-      nav.classList.toggle('is-compact', scrollY > 40);
-      const probe = (n) => { for (const s of secs) { const r = s.getBoundingClientRect(); if (r.top <= n && r.bottom > n) return s; } return null; };
-      const top = probe(36), bot = probe(innerHeight - 40);
-      if (top && nav.dataset.tone !== top.dataset.tone) nav.dataset.tone = top.dataset.tone;
-      if (bot && dock.dataset.tone !== bot.dataset.tone) dock.dataset.tone = bot.dataset.tone;
-      let idx = -1;
-      targets.forEach((t, i) => { if (t && t.getBoundingClientRect().top <= innerHeight * 0.45) idx = i; });
-      if (idx !== active) {
-        active = idx;
-        links.forEach((l, i) => { if (i === idx) { l.setAttribute('aria-current', 'true'); } else l.removeAttribute('aria-current'); });
-        const cur = links[idx];
-        if (cur && dock.scrollWidth > dock.clientWidth) dock.scrollTo({ left: cur.offsetLeft - dock.clientWidth / 2 + cur.offsetWidth / 2, behavior: 'smooth' });
+      const c = scrollY > Math.min(innerHeight * 0.5, 420);
+      if (c !== compact) { compact = c; nav.classList.toggle('is-compact', c); }
+      const y = (nav.offsetHeight || 60) / 2;
+      for (const s of secs) {
+        const r = s.getBoundingClientRect();
+        if (r.top <= y && r.bottom > y) {
+          if (nav.dataset.tone !== s.dataset.tone) nav.dataset.tone = s.dataset.tone;
+          if (out.textContent !== s.dataset.name) out.textContent = s.dataset.name;
+          break;
+        }
       }
     };
     onScrollFns.push(update);
     addEventListener('resize', update);
     update();
+  }
+
+  /* ======================================================================
+     Index overlay
+     ====================================================================== */
+  function initIndex() {
+    const box = $('#index'), open = $('#index-open'), close = $('#index-close');
+    $$('.index-list > li', box).forEach((li, i) => li.style.setProperty('--i', i));
+    let last = null;
+    const show = () => {
+      last = document.activeElement;
+      box.hidden = false;
+      open.setAttribute('aria-expanded', 'true');
+      document.documentElement.style.overflow = 'hidden';
+      close.focus();
+    };
+    const hide = (refocus) => {
+      box.hidden = true;
+      open.setAttribute('aria-expanded', 'false');
+      document.documentElement.style.overflow = '';
+      if (refocus && last) last.focus();
+    };
+    open.addEventListener('click', show);
+    close.addEventListener('click', () => hide(true));
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); hide(true); }
+      if (e.key === 'Tab') {
+        const f = $$('a, button', box);
+        const first = f[0], end = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); end.focus(); }
+        else if (!e.shiftKey && document.activeElement === end) { e.preventDefault(); first.focus(); }
+      }
+    });
+    $$('a', box).forEach((a) => a.addEventListener('click', () => hide(false)));
   }
 
   /* ======================================================================
@@ -290,27 +317,31 @@
       return c;
     }
 
-    /* The lens: a rounded window onto the same field in thermal. The mask is
-       its shape, plus the buffers for the thermal view. */
+    /* The wordmark: a mask of "herd" plus the buffers for the thermal view. */
     function buildWord() {
-      const wide = W >= 900;
-      const w = Math.round(wide ? Math.min(W * 0.42, 760) : W - 2 * gutter);
-      const h = Math.round(wide ? Math.min(H * 0.64, 620) : H * 0.4);
-      const x = Math.round(wide ? W - gutter - w : gutter);
-      const y = Math.round(wide ? Math.max(H * 0.2, 96) : H - h - 56 * S);
-      const r = Math.round(34 * S);
+      const m = document.createElement('canvas').getContext('2d');
+      const ls = (fs) => { if ('letterSpacing' in m) m.letterSpacing = (-0.04 * fs).toFixed(2) + 'px'; };
+      m.font = `700 200px ${FONT}`; ls(200);
+      const mt = m.measureText('herd');
+      const inkW = mt.actualBoundingBoxLeft + mt.actualBoundingBoxRight;
+      const asc = mt.actualBoundingBoxAscent, desc = Math.max(0, mt.actualBoundingBoxDescent);
+      let fs = ((W - 2 * gutter) / inkW) * 200;
+      fs = Math.min(fs, ((H * (W < 700 ? 0.3 : 0.6)) / asc) * 200);
+      const k = fs / 200;
+      const w = Math.ceil(inkW * k) + 2, h = Math.ceil((asc + desc) * k) + 2;
+      const x = Math.round(gutter), y = Math.round(H - gutter * 0.6 - h);
       const mask = document.createElement('canvas');
       mask.width = Math.round(w * DPR); mask.height = Math.round(h * DPR);
       const mg = mask.getContext('2d');
       mg.scale(DPR, DPR);
+      mg.font = `700 ${fs}px ${FONT}`;
+      if ('letterSpacing' in mg) mg.letterSpacing = (-0.04 * fs).toFixed(2) + 'px';
       mg.fillStyle = '#fff';
-      mg.beginPath();
-      if (mg.roundRect) mg.roundRect(0, 0, w, h, r); else mg.rect(0, 0, w, h);
-      mg.fill();
-      maskData = { data: mg.getImageData(0, 0, mask.width, mask.height).data, w: mask.width, h: mask.height, r };
+      mg.fillText('herd', mt.actualBoundingBoxLeft * k + 1, asc * k + 1);
+      maskData = { data: mg.getImageData(0, 0, mask.width, mask.height).data, w: mask.width, h: mask.height };
       // scanlines, like a thermal camera
       mg.globalCompositeOperation = 'destination-out';
-      mg.fillStyle = 'rgba(0,0,0,.14)';
+      mg.fillStyle = 'rgba(0,0,0,.16)';
       for (let yy = 0; yy < h; yy += 3) mg.fillRect(0, yy, w, 1);
 
       const cs = Math.max(3, Math.round(5 * S));
@@ -337,7 +368,7 @@
 
     /* Find a resting place for the flagged animal well inside a letter stroke. */
     function sickSpot(len) {
-      const want = [word.x + word.w * 0.58, word.y + word.h * 0.52];
+      const want = [word.x + word.w * (W < 700 ? 0.62 : 0.6), word.y + word.h * 0.5];
       let best = null, bd = Infinity;
       const step = Math.max(3, len * 0.25);
       for (let y = word.y; y < word.y + word.h; y += step) {
@@ -360,8 +391,8 @@
 
     function spawn() {
       const n = Math.round(clamp((W * H) / 14000, 30, 104));
-      const area = [[0.28, 0.3], [0.62, 0.55], [0.4, 0.78]];
-      groups = area.map(([gx, gy], i) => ({ x: word.x + gx * word.w, y: word.y + gy * word.h, vx: (i - 1) * 3, vy: 0 }));
+      const area = [[0.2, 0.42], [0.5, 0.64], [0.8, 0.46]];
+      groups = area.map(([gx, gy], i) => ({ x: gx * W, y: gy * H, vx: (i - 1) * 3, vy: 0 }));
       const ids = [];
       for (let i = 0; i < n + 1; i++) ids.push(101 + i);
       for (let i = ids.length - 1; i > 0; i--) { const j = (R() * (i + 1)) | 0; [ids[i], ids[j]] = [ids[j], ids[i]]; }
@@ -390,7 +421,7 @@
       // keep herd animals off the flagged one's spot
       animals.forEach((a) => { if (a !== sick && Math.hypot(a.x - sick.x, a.y - sick.y) < 60 * S) { a.x -= 80 * S; } });
       const watch = animals.filter((a) => a.level === 'watch').length;
-      hmCount.textContent = `${animals.length} animals`;
+      hmCount.textContent = `${animals.length} subjects`;
       hmState.textContent = `${animals.length - watch - 1} nominal · ${watch} watch · 1 flag`;
     }
 
@@ -424,10 +455,9 @@
         const sp = Math.hypot(g.vx, g.vy), mx = 5 * S;
         if (sp > mx) { g.vx *= mx / sp; g.vy *= mx / sp; }
         g.x += g.vx * dt; g.y += g.vy * dt;
-        const gx0 = word.x + word.w * 0.12, gx1 = word.x + word.w * 0.88, gy0 = word.y + word.h * 0.14, gy1 = word.y + word.h * 0.86;
-        if (g.x < gx0 || g.x > gx1) g.vx *= -1;
-        if (g.y < gy0 || g.y > gy1) g.vy *= -1;
-        g.x = clamp(g.x, gx0, gx1); g.y = clamp(g.y, gy0, gy1);
+        if (g.x < W * 0.14 || g.x > W * 0.86) g.vx *= -1;
+        if (g.y < H * 0.3 || g.y > H * 0.76) g.vy *= -1;
+        g.x = clamp(g.x, W * 0.14, W * 0.86); g.y = clamp(g.y, H * 0.3, H * 0.76);
       }
       for (const a of animals) {
         if (a.lying) continue;
@@ -570,7 +600,6 @@
       }
       ctx.restore();
       drawThermal();
-      lensFrame();
       // flagged animal: brackets, rotating ring, leader
       const fx = sick.x + ptr.px, fy = sick.y + ptr.py, s = sick.len * 1.05;
       brackets(fx, fy, s, LCOL.flag, 1);
@@ -590,19 +619,6 @@
         const lh = place(probeH, hover, hx, hy, hs);
         leader(hx, hy, hs, lh, 'rgba(242,241,236,.8)');
       }
-    }
-
-    function lensFrame() {
-      const { x, y, w, h } = word, r = maskData.r;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(242,241,236,.38)'; ctx.lineWidth = 1;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(x + .5, y + .5, w - 1, h - 1, r); else ctx.rect(x + .5, y + .5, w - 1, h - 1);
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(242,241,236,.8)';
-      ctx.font = '500 10px "Martian Mono", ui-monospace, monospace';
-      ctx.fillText('THERMAL VIEW', x + r * 0.7, y + 22);
-      ctx.restore();
     }
 
     function leader(x, y, s, box, col) {
@@ -692,7 +708,7 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else if (visible) start(); });
 
     // scroll: the field sinks and dims as the page moves on
-    const tag = $('.hero-copy');
+    const tag = $('.hero-tag');
     onScrollFns.push(() => {
       const y = scrollY;
       if (y > H * 1.2) return;
@@ -1212,6 +1228,7 @@
   initResolver();
   initTHI();
   initSpecies();
+  initPrinciples();
   initLog();
   initClose();
 })();
