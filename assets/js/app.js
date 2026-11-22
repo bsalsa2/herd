@@ -1,6 +1,7 @@
 /* Herd · app controller
-   Hash routing (works on GitHub Pages with no server config), delegated
-   events, dialogs, import/export. */
+   Hash routing (works on GitHub Pages with no server config), the shell
+   (rail roster, breadcrumbs, top bar), delegated events, dialogs, the command
+   palette, keyboard shortcuts, theme, lock, import/export. */
 (function (H) {
   'use strict';
 
@@ -12,26 +13,70 @@
   const ES = H.envStore;
   const EV = H.envViews;
   const SN = H.sensors;
+  const esc = U.esc;
 
   const main = document.getElementById('main');
   const dlg = document.getElementById('dialog');
   const fileInput = document.getElementById('import-file');
   const toastEl = document.getElementById('toast');
   const lastExportEl = document.getElementById('last-export');
+  const rosterEl = document.getElementById('roster');
+  const crumbsEl = document.getElementById('crumbs');
+  const barToday = document.getElementById('bar-today');
+  const barSensors = document.getElementById('bar-sensors');
+  const barSensorsCell = document.getElementById('bar-sensors-cell');
+  const themeBtn = document.getElementById('theme-btn');
+  const lockBtn = document.getElementById('lock-btn');
+  const pal = document.getElementById('palette');
+  const palInput = document.getElementById('pal-input');
+  const palList = document.getElementById('pal-list');
 
   /* ---------- UI state (per browser, cosmetic only) ---------------------- */
 
   const UI_KEY = 'herd:ui';
   const RANGE_KEYS = ['14', '30', '90', 'all'];
-  const state = { filter: 'all', range: '30', logAll: false };
+  const state = { filter: 'all', range: '30', logAll: false, theme: document.documentElement.getAttribute('data-theme') || 'dark' };
 
   try {
     const saved = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
     if (RANGE_KEYS.includes(saved.range)) state.range = saved.range;
   } catch (err) { /* defaults */ }
 
-  function saveUI() {
-    try { localStorage.setItem(UI_KEY, JSON.stringify({ range: state.range })); } catch (err) { /* ignore */ }
+  function saveUI(extra) {
+    try {
+      const prev = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
+      localStorage.setItem(UI_KEY, JSON.stringify(Object.assign(prev, { range: state.range }, extra || {})));
+    } catch (err) { /* ignore */ }
+  }
+
+  /* ---------- Theme and lock -------------------------------------------- */
+
+  function applyTheme(t) {
+    state.theme = t === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', state.theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', state.theme === 'light' ? '#F2F1EC' : '#07100B');
+    const next = state.theme === 'light' ? 'dark' : 'light';
+    themeBtn.setAttribute('aria-label', `Switch to ${next} theme`);
+    themeBtn.title = `Switch to ${next} theme`;
+    themeBtn.querySelector('use').setAttribute('href', state.theme === 'light' ? '#i-moon' : '#i-sun');
+  }
+
+  function toggleTheme() {
+    applyTheme(state.theme === 'light' ? 'dark' : 'light');
+    saveUI({ theme: state.theme });
+    C.reset();
+    render();
+  }
+
+  // Only the published copy sits behind the passphrase gate.
+  const LOCKED_COPY = /\/internal\/?/.test(location.pathname);
+  lockBtn.hidden = !LOCKED_COPY;
+
+  function lock() {
+    try { localStorage.removeItem('herd:unlock'); } catch (err) { /* ignore */ }
+    SN.stopAll && SN.stopAll();
+    location.reload();
   }
 
   /* ---------- Routing ---------------------------------------------------- */
@@ -63,11 +108,12 @@
     else if (r.name === 'env') view = EV.envPage();
     else view = V.overview(state);
     main.innerHTML = view.html;
+    const navKey = r.name === 'env' ? 'env' : r.name === 'overview' ? 'overview' : '';
     document.querySelectorAll('[data-nav]').forEach((a) => {
-      const on = a.dataset.nav === (r.name === 'env' ? 'env' : 'overview');
-      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     document.title = view.title;
+    renderCrumbs(view.crumbs || []);
     if (changed) {
       const el = main.firstElementChild;
       if (el) el.classList.add('enter');
@@ -75,7 +121,7 @@
     if (view.mount) view.mount(main);
     main.querySelectorAll('[data-live]').forEach((el) => { el.__html = el.innerHTML; });
     main.querySelectorAll('form[data-form="entry"]').forEach(V.updatePreview);
-    renderFooter();
+    renderShell();
 
     if (changed && o.fromHash) {
       window.scrollTo(0, 0);
@@ -83,15 +129,46 @@
     }
   }
 
-  function renderFooter() {
+  function renderCrumbs(list) {
+    const parts = [`<a href="#/">Herd</a>`];
+    list.forEach((c, i) => {
+      parts.push('<span class="sep" aria-hidden="true">/</span>');
+      parts.push(c.href && i < list.length - 1 ? `<a href="${esc(c.href)}">${esc(c.label)}</a>` : `<span aria-current="page">${esc(c.label)}</span>`);
+    });
+    crumbsEl.innerHTML = parts.join('');
+  }
+
+  /* Rail roster, top bar cells, last export. */
+  function renderShell() {
+    const subjects = S.subjects();
+    const activeId = current && current.name === 'subject' ? current.id : null;
+    rosterEl.innerHTML = subjects.length ? subjects.map((s) => {
+      const lv = B.analyze(S.entries(s.id)).status.level;
+      return `<li><a class="ros" href="#/s/${esc(s.id)}"${s.id === activeId ? ' aria-current="page"' : ''} title="${esc(V.LEVEL_LABEL[lv])}">
+        <i class="dot ${lv}" aria-hidden="true"></i><span class="ros-id">${esc(s.id)}</span><span class="ros-name">${esc(s.name)}</span>
+        <span class="visually-hidden">, ${esc(V.LEVEL_LABEL[lv])}</span></a></li>`;
+    }).join('') : '<li class="ros-empty">No subjects yet</li>';
+
+    const today = U.todayISO();
+    barToday.textContent = `${U.fmtWeekday(today)} ${U.fmtDate(today)}`;
+    renderSensorCell();
+
     const at = S.meta().lastExportAt;
-    if (!at) {
-      lastExportEl.textContent = 'Last export: never';
-      return;
+    if (!at) lastExportEl.textContent = 'Last export: never';
+    else {
+      const d = new Date(at);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      lastExportEl.textContent = `Last export: ${U.fmtDate(iso)} · ${U.fmtAgo(iso)}`;
     }
-    const d = new Date(at);
-    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    lastExportEl.textContent = `Last export: ${U.fmtDate(iso)} (${U.fmtAgo(iso)})`;
+  }
+
+  function renderSensorCell() {
+    const t = EV.sensorTally();
+    barSensorsCell.hidden = !t.total;
+    barSensors.innerHTML = `<i class="dot ${t.live === t.total ? 'nominal' : t.live ? 'watch' : 'flag'}" aria-hidden="true"></i> ${t.live}/${t.total} live`;
+    barSensors.style.display = 'inline-flex';
+    barSensors.style.alignItems = 'center';
+    barSensors.style.gap = '8px';
   }
 
   /* ---------- Live sensor updates --------------------------------------
@@ -112,6 +189,7 @@
   }
 
   function refreshLive() {
+    renderSensorCell();
     main.querySelectorAll('[data-live]').forEach((el) => {
       if (el.querySelector('.chart:hover, .chart:focus')) return; // don't yank a tooltip mid-read
       const res = EV.live(el.dataset.live);
@@ -135,13 +213,12 @@
 
   let toastTimer = 0;
   function toast(msg, level) {
-    toastEl.innerHTML = `${level ? `<span class="dot ${level}"></span>` : ''}<span>${U.esc(msg)}</span>`;
-    // restart the transition
+    toastEl.innerHTML = `${level ? `<span class="dot ${level}"></span>` : ''}<span>${esc(msg)}</span>`;
     toastEl.classList.remove('on');
-    void toastEl.offsetWidth;
+    void toastEl.offsetWidth; // restart the transition
     toastEl.classList.add('on');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2800);
+    toastTimer = setTimeout(() => toastEl.classList.remove('on'), 3000);
   }
 
   /* ---------- Dialogs ---------------------------------------------------- */
@@ -150,12 +227,13 @@
   let returnFocus = null;
 
   function openDialog(html, narrow) {
+    closePalette(false);
     returnFocus = document.activeElement;
     dlg.classList.toggle('narrow', Boolean(narrow));
     dlg.returnValue = '';
     dlg.innerHTML = html;
     if (!dlg.open) dlg.showModal();
-    const target = dlg.querySelector('[autofocus]') || dlg.querySelector('input:not([type=hidden]), select, textarea');
+    const target = dlg.querySelector('[autofocus]') || dlg.querySelector('input:not([type=hidden]):not([type=radio]), select, textarea');
     if (target) target.focus();
   }
 
@@ -173,7 +251,9 @@
       r(dlg.returnValue === 'confirm');
     }
     dlg.innerHTML = '';
-    if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
+    // The opener may have been re-rendered away; keep focus inside the page.
+    if (returnFocus && document.contains(returnFocus) && returnFocus !== document.body) returnFocus.focus({ preventScroll: true });
+    else main.focus({ preventScroll: true });
     returnFocus = null;
   });
 
@@ -190,7 +270,7 @@
   }
 
   function alertDialog(title, message) {
-    return confirmDialog({ eyebrow: 'Notice', title, bodyHTML: U.esc(message), confirmLabel: 'OK', cancel: false });
+    return confirmDialog({ eyebrow: 'Notice', title, bodyHTML: esc(message), confirmLabel: 'OK', cancel: false });
   }
 
   /* ---------- Subjects --------------------------------------------------- */
@@ -247,7 +327,7 @@
     const ok = await confirmDialog({
       eyebrow: 'Delete subject',
       title: `Delete ${s.id}?`,
-      bodyHTML: `This permanently removes <strong>${U.esc(s.name)}</strong> and ${n} ${n === 1 ? 'entry' : 'entries'} from this browser. The ID will not be reused. Export first if you need a copy.`,
+      bodyHTML: `This permanently removes <strong>${esc(s.name)}</strong> and ${n} ${n === 1 ? 'entry' : 'entries'} from this browser. The ID will not be reused. Export first if you need a copy.`,
       confirmLabel: 'Delete subject',
       danger: true,
     });
@@ -264,9 +344,31 @@
     const e = S.entry(id);
     if (!e) return;
     const s = S.subject(e.subjectId);
-    openDialog(V.entryDialog(s, e));
+    openDialog(V.entryDialog(s, e, e.date));
     const form = dlg.querySelector('form[data-form="entry"]');
     if (form) V.updatePreview(form);
+  }
+
+  /* Today's entry for any subject, from the field view or the palette. */
+  function openTodayDialog(subjectId) {
+    const s = S.subject(subjectId);
+    if (!s) return;
+    const today = U.todayISO();
+    openDialog(V.entryDialog(s, S.entryOn(subjectId, today), today));
+    const form = dlg.querySelector('form[data-form="entry"]');
+    if (form) {
+      V.updatePreview(form);
+      const act = form.elements.namedItem('activity');
+      if (act) act.focus();
+    }
+  }
+
+  function focusEntry() {
+    const form = main.querySelector('#entry form');
+    if (!form) return;
+    form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+    const act = form.elements.namedItem('activity');
+    setTimeout(() => act && act.focus({ preventScroll: true }), 250);
   }
 
   function submitEntry(form) {
@@ -285,8 +387,9 @@
 
     const ev = B.analyze(S.entries(subjectId)).evals.get(saved.id);
     const label = V.LEVEL_LABEL[ev.level];
-    const detail = ev.notes.length ? ` · ${ev.notes[0].text}` : '';
-    toast(`Saved ${U.fmtDate(saved.date)} · ${label}${detail}`, ev.level);
+    const detail = ev.notes.length ? ` · ${ev.notes[0].text || ''}` : '';
+    const note = ev.notes.length && ev.notes[0].kind === 'delta' ? ` · ${ev.notes[0].label} ${U.fmtPct(ev.notes[0].pct)}` : detail;
+    toast(`${subjectId} · ${U.fmtDate(saved.date)} saved · ${label}${note}`, ev.level);
   }
 
   async function deleteEntry(id) {
@@ -295,7 +398,7 @@
     const ok = await confirmDialog({
       eyebrow: 'Delete entry',
       title: `Delete the ${U.fmtDate(e.date)} entry?`,
-      bodyHTML: `This removes the ${U.esc(U.fmtDateLong(e.date))} entry for <span class="mono">${U.esc(e.subjectId)}</span>. Baselines for the following 14 days will be recalculated.`,
+      bodyHTML: `This removes the ${esc(U.fmtDateLong(e.date))} entry for <strong>${esc(e.subjectId)}</strong>. Baselines for the following 14 days will be recalculated.`,
       confirmLabel: 'Delete entry',
       danger: true,
     });
@@ -376,7 +479,7 @@
     const ok = await confirmDialog({
       eyebrow: 'Remove sensor',
       title: `Remove ${s.name}?`,
-      bodyHTML: `This disconnects <span class="mono">${U.esc(s.id)}</span> and deletes its ${n} stored ${n === 1 ? 'reading' : 'readings'}. The ID will not be reused.`,
+      bodyHTML: `This disconnects <strong>${esc(s.id)}</strong> and deletes its ${n} stored ${n === 1 ? 'reading' : 'readings'}. The ID will not be reused.`,
       confirmLabel: 'Remove sensor',
       danger: true,
     });
@@ -496,8 +599,13 @@
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     S.markExported();
-    renderFooter();
+    renderShell();
     toast(`Exported ${payload.subjects.length} subjects · ${payload.entries.length} entries`);
+  }
+
+  function pickImport() {
+    fileInput.value = '';
+    fileInput.click();
   }
 
   async function importFile(file) {
@@ -528,8 +636,8 @@
     const ok = await confirmDialog({
       eyebrow: 'Import',
       title: 'Replace current data?',
-      bodyHTML: `This browser holds <span class="mono">${cur.subjects}</span> subjects and <span class="mono">${cur.entries}</span> entries. `
-        + `The file contains <span class="mono">${next.subjects.length}</span> subjects and <span class="mono">${next.entries.length}</span> entries, which will replace them.${U.esc(skipped)}${U.esc(envNote)}`,
+      bodyHTML: `This browser holds <strong>${cur.subjects}</strong> subjects and <strong>${cur.entries}</strong> entries. `
+        + `The file contains <strong>${next.subjects.length}</strong> subjects and <strong>${next.entries.length}</strong> entries, which will replace them.${esc(skipped)}${esc(envNote)}`,
       confirmLabel: 'Replace data',
     });
     if (!ok) return;
@@ -557,6 +665,173 @@
     toast('Sample data restored');
   }
 
+  /* ---------- Command palette ------------------------------------------- */
+
+  let palItems = [];
+  let palIndex = 0;
+  let palReturn = null;
+
+  function commands() {
+    const list = [];
+    const today = U.todayISO();
+    S.subjects().forEach((s) => {
+      const st = B.analyze(S.entries(s.id)).status;
+      const note = st.notes[0] ? (st.notes[0].kind === 'delta' ? `${st.notes[0].label} ${U.fmtPct(st.notes[0].pct)} vs 14-day baseline` : st.notes[0].text || '') : '';
+      list.push({
+        group: 'Subjects', key: `${s.id} ${s.name} ${s.species} ${s.breed}`,
+        icon: V.sil(s.species, st.level), id: s.id, title: s.name, sub: [`${V.LEVEL_LABEL[st.level]}`, note].filter(Boolean).join(' · '), go: 'Open',
+        run: () => navigate(`#/s/${s.id}`),
+      });
+    });
+    S.subjects().forEach((s) => {
+      const done = S.entryOn(s.id, today);
+      list.push({
+        group: 'Log', key: `log today entry ${s.id} ${s.name}`,
+        icon: '<svg aria-hidden="true"><use href="#i-plus"/></svg>', id: s.id, title: `${done ? 'Edit' : 'Log'} today’s entry`, sub: s.name, go: 'Log',
+        run: () => openTodayDialog(s.id), secondary: true,
+      });
+    });
+    ES.spaces().forEach((sp) => {
+      list.push({ group: 'Spaces', key: `space ${sp.id} ${sp.name}`, icon: '<svg aria-hidden="true"><use href="#i-env"/></svg>', id: sp.id, title: sp.name, sub: `${ES.residentsOf(sp.id).length} residents`, go: 'Edit', run: () => openDialog(EV.spaceForm(ES.space(sp.id))) });
+    });
+    const act = (title, key, sub, run, icon) => list.push({ group: 'Actions', key: `${title} ${key}`, icon: `<svg aria-hidden="true"><use href="#${icon || 'i-plus'}"/></svg>`, title, sub, go: 'Run', run });
+    act('New subject', 'add create animal', 'Shortcut N', () => openSubjectDialog());
+    act('Field', 'overview home subjects go', 'Shortcut G then F', () => navigate('#/'), 'i-field');
+    act('Environment', 'spaces sensors climate go', 'Shortcut G then E', () => navigate('#/env'), 'i-env');
+    act('Add sensor', 'new bluetooth wifi manual simulated', '', () => openSensorDialog(null), 'i-env');
+    act('Add space', 'new room pen stall barn', '', () => openDialog(EV.spaceForm(null)), 'i-env');
+    act('Export backup', 'download json save', 'Downloads every record as JSON', exportData, 'i-search');
+    act('Import backup', 'upload json restore', 'Replaces the data in this browser', pickImport, 'i-search');
+    act(`Switch to ${state.theme === 'light' ? 'dark' : 'light'} theme`, 'theme dark light mode appearance', '', toggleTheme, state.theme === 'light' ? 'i-moon' : 'i-sun');
+    if (LOCKED_COPY) act('Lock this device', 'lock sign out logout passphrase', 'Forgets the saved key and shows the gate', lock, 'i-lock');
+    act('Public site', 'landing website home page', '', () => { location.href = '../'; }, 'i-mark');
+    return list;
+  }
+
+  function score(item, q) {
+    if (!q) return item.secondary ? -1 : 1;
+    const hay = `${item.id || ''} ${item.title} ${item.key} ${item.sub || ''}`.toLowerCase();
+    let s = 0;
+    for (const term of q.split(/\s+/).filter(Boolean)) {
+      const i = hay.indexOf(term);
+      if (i < 0) return -1;
+      s += i === 0 ? 4 : /\s/.test(hay[i - 1]) ? 3 : 1;
+    }
+    if ((item.id || '').toLowerCase().includes(q)) s += 5;
+    return s;
+  }
+
+  function hilite(text, q) {
+    const t = esc(text);
+    if (!q) return t;
+    const terms = q.split(/\s+/).filter((x) => x.length > 1).map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    if (!terms.length) return t;
+    return t.replace(new RegExp(`(${terms.join('|')})`, 'ig'), '<mark>$1</mark>');
+  }
+
+  function renderPalette() {
+    const q = palInput.value.trim().toLowerCase();
+    const all = commands();
+    palItems = all.map((it) => ({ it, s: score(it, q) })).filter((x) => x.s >= 0)
+      .sort((a, b) => (q ? b.s - a.s : 0)).map((x) => x.it);
+    if (!q) palItems = palItems.filter((it) => it.group !== 'Log' && it.group !== 'Spaces').concat(all.filter((it) => it.group === 'Spaces'));
+    palItems = palItems.slice(0, 40);
+    palIndex = Math.min(palIndex, Math.max(0, palItems.length - 1));
+    if (!palItems.length) {
+      palList.innerHTML = `<li class="pal-empty">Nothing matches “${esc(palInput.value)}”.</li>`;
+      palInput.removeAttribute('aria-activedescendant');
+      return;
+    }
+    let group = '';
+    palList.innerHTML = palItems.map((it, i) => {
+      const head = !q && it.group !== group ? `<li class="pal-group" role="presentation">${esc(it.group)}</li>` : '';
+      group = it.group;
+      return `${head}<li class="pal-item" role="option" id="pal-${i}" data-i="${i}" aria-selected="${i === palIndex}">
+        <span class="ic">${it.icon}</span>
+        <span class="tx">${it.id ? `<span class="id">${hilite(it.id, q)}</span>` : ''}<b>${hilite(it.title, q)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>
+        <span class="go">${esc(it.go || '')}</span>
+      </li>`;
+    }).join('');
+    palInput.setAttribute('aria-activedescendant', `pal-${palIndex}`);
+  }
+
+  function movePalette(d) {
+    if (!palItems.length) return;
+    palIndex = (palIndex + d + palItems.length) % palItems.length;
+    palList.querySelectorAll('.pal-item').forEach((el) => el.setAttribute('aria-selected', String(Number(el.dataset.i) === palIndex)));
+    palInput.setAttribute('aria-activedescendant', `pal-${palIndex}`);
+    const el = document.getElementById(`pal-${palIndex}`);
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function openPalette(seed) {
+    if (dlg.open) return;
+    palReturn = document.activeElement;
+    pal.hidden = false;
+    palInput.value = seed || '';
+    palIndex = 0;
+    renderPalette();
+    palInput.focus();
+    document.documentElement.style.overflow = 'hidden';
+  }
+
+  function closePalette(refocus) {
+    if (pal.hidden) return;
+    pal.hidden = true;
+    document.documentElement.style.overflow = '';
+    if (refocus !== false && palReturn && document.contains(palReturn)) palReturn.focus({ preventScroll: true });
+  }
+
+  function runPalette(i) {
+    const it = palItems[i];
+    if (!it) return;
+    closePalette(false);
+    it.run();
+  }
+
+  palInput.addEventListener('input', () => { palIndex = 0; renderPalette(); });
+  palInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); movePalette(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); runPalette(palIndex); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+    else if (e.key === 'Tab') e.preventDefault();
+  });
+  palList.addEventListener('mousemove', (e) => {
+    const li = e.target.closest('.pal-item');
+    if (li && Number(li.dataset.i) !== palIndex) movePalette(Number(li.dataset.i) - palIndex);
+  });
+  palList.addEventListener('click', (e) => {
+    const li = e.target.closest('.pal-item');
+    if (li) runPalette(Number(li.dataset.i));
+  });
+  pal.addEventListener('mousedown', (e) => { if (e.target === pal) closePalette(); });
+
+  /* ---------- Keyboard shortcuts ---------------------------------------- */
+
+  let gPending = 0;
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (pal.hidden) openPalette(); else closePalette();
+      return;
+    }
+    if (e.metaKey || e.ctrlKey || e.altKey || dlg.open || !pal.hidden) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    const k = e.key.toLowerCase();
+    if (gPending) {
+      gPending = 0;
+      if (k === 'f') { e.preventDefault(); navigate('#/'); }
+      else if (k === 'e') { e.preventDefault(); navigate('#/env'); }
+      return;
+    }
+    if (k === '/') { e.preventDefault(); openPalette(); }
+    else if (k === 'n') { e.preventDefault(); openSubjectDialog(); }
+    else if (k === 'g') { gPending = setTimeout(() => { gPending = 0; }, 900); }
+    else if (k === 'l' && current && current.name === 'subject') { e.preventDefault(); focusEntry(); }
+  });
+
   /* ---------- Events ----------------------------------------------------- */
 
   document.addEventListener('click', (ev) => {
@@ -569,10 +844,15 @@
       case 'delete-subject': deleteSubject(id); break;
       case 'edit-entry': openEntryDialog(id); break;
       case 'delete-entry': deleteEntry(id); break;
+      case 'log-entry': openTodayDialog(id); break;
+      case 'focus-entry': focusEntry(); break;
       case 'close-dialog': closeDialog(); break;
       case 'export': exportData(); break;
-      case 'import': fileInput.value = ''; fileInput.click(); break;
+      case 'import': pickImport(); break;
       case 'reset': resetSample(); break;
+      case 'palette': openPalette(); break;
+      case 'theme': toggleTheme(); break;
+      case 'lock': lock(); break;
       case 'filter': {
         const f = t.dataset.filter;
         state.filter = state.filter === f ? 'all' : f;
@@ -635,7 +915,7 @@
     if (file) importFile(file);
   });
 
-  window.addEventListener('hashchange', () => render({ fromHash: true }));
+  window.addEventListener('hashchange', () => { closePalette(false); render({ fromHash: true }); });
 
   // Keep multiple open tabs in sync.
   window.addEventListener('storage', (e) => {
@@ -653,6 +933,7 @@
 
   /* ---------- Boot ------------------------------------------------------- */
 
+  applyTheme(state.theme);
   S.load();
   ES.load();
   SN.sync();

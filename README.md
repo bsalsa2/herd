@@ -23,23 +23,32 @@ The published site has two parts, both served from `docs/`:
 
 ## Features
 
-- **Overview** — every subject with its ID, species, last entry, a 14-day
-  energy sparkline, the current signal, and a status of **Nominal**, **Watch**,
-  or **Flag**. The status counters double as filters.
-- **Subject page** — ID and status header, the current signal in plain
-  language, 14-day baseline statistics, energy and activity charts (hand-drawn
-  SVG) with a shaded baseline band, a form for today's entry, and the full log.
+- **Field** (`#/`) — Nominal / Watch / Flag counters that double as filters;
+  **today's rounds**, which lists every animal still missing today's entry
+  with a one-click *Log today*; and the subject index, most urgent first, with
+  each animal's silhouette, last entry, 14-day activity sparkline and signal.
+- **Subject record** (`#/s/HRD-0001`) — ID, silhouette and status header, the
+  current signal in plain language, 14-day baseline statistics, energy and
+  activity charts with the baseline band and the −20% / −30% lines, today's
+  entry beside them, the environment panel, and the full log.
 - **Live preview** — while you fill in an entry, Herd shows the flag it will
   raise before you save it.
 - **Add, edit, delete** subjects and entries. Subject IDs (`HRD-0001`, …) are
   permanent and never reused, even after a delete.
-- **Environment hub** — spaces, species-aware climate needs, and one place to
-  connect and control sensors (Bluetooth, Wi‑Fi/HTTP, manual, simulated). See
-  [Environment and sensors](#environment-and-sensors).
+- **Environment hub** (`#/env`) — spaces, species-aware climate needs, and one
+  place to connect and control sensors (Bluetooth, Wi‑Fi/HTTP, manual,
+  simulated). See [Environment and sensors](#environment-and-sensors).
+- **Search and jump** — ⌘K / Ctrl+K (or `/`) opens a palette for every subject,
+  space and action, including *Log today's entry* for any animal.
+- **Keyboard** — `N` new subject, `G` then `F` field, `G` then `E`
+  environment, `L` on a record jumps to today's entry, `Esc` closes.
 - **Export / Import** the whole dataset as JSON for backup or moving devices.
-- **Design** — minimal biotech: white field, hairline borders, one teal accent,
-  monospace for data. Follows the system dark mode, works on a phone, and
-  respects `prefers-reduced-motion`.
+- **Lock** — on the published copy, *Lock* forgets this device's saved key and
+  shows the passphrase gate again.
+- **Design** — the public site's language: Martian Mono for data, Host Grotesk
+  for text, signal colours for status, hairline structure, CC0 animal
+  silhouettes. Dark by default with a light theme (follows the system until
+  you pick one). Works on a phone, respects `prefers-reduced-motion`.
 
 ## How the baseline works
 
@@ -315,6 +324,12 @@ browser when the password is right. The public site links to it as **Internal**.
   ```
 
   Then commit `docs/internal/index.html`. The password is never written to disk.
+  **Editing the app (`index.html`, `assets/`) changes nothing online until you
+  run this**: the published copy is the encrypted file, not the source.
+- **Devices stay signed in across rebuilds.** The tool reuses the published
+  salt, so a device that chose *Keep me signed in* still opens after a rebuild
+  with the same password. Changing the password signs every device out; so does
+  `node tools/lock.mjs --new-salt`.
 - **Restyle the gate without the password:** edit the template at the bottom of
   `tools/lock.mjs`, then run `node tools/lock.mjs --restyle`. It keeps the
   existing ciphertext, so the password stays the same.

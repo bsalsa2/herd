@@ -10,6 +10,8 @@
      node tools/lock.mjs              (prompts for the password)
      node tools/lock.mjs --restyle    (rebuild the gate page around the existing
                                        ciphertext; no password needed)
+     node tools/lock.mjs --new-salt   (encrypt with a fresh salt, which also
+                                       signs out every remembered device)
 
    The password is never written to disk. Re-run any time to change it. */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -70,9 +72,21 @@ html = html.replace(/<link rel="stylesheet" href="(assets\/css\/[^"]+)">/g, (_, 
 html = html.replace(/<script src="(assets\/js\/[^"]+)"><\/script>/g, (_, f) => `<script>\n${safe(readFileSync(join(root, f), 'utf8'))}\n</script>`);
 if (/(href|src)="assets\//.test(html)) { console.error('Some assets were not inlined.'); process.exit(1); }
 
-// 2. Encrypt.
+// 2. Encrypt. Reuse the published salt when there is one, so a device that
+//    chose "keep me signed in" stays unlocked after a rebuild with the same
+//    password. A changed password still locks every device out. --new-salt
+//    forces a fresh one.
 const enc = new TextEncoder();
-const salt = crypto.getRandomValues(new Uint8Array(16));
+let salt = crypto.getRandomValues(new Uint8Array(16));
+if (!process.argv.includes('--new-salt') && existsSync(OUT)) {
+  const prev = readFileSync(OUT, 'utf8');
+  const s = prev.match(/var SALT = "([A-Za-z0-9+/=]+)"/);
+  const it = prev.match(/IT = (\d+)/);
+  if (s && it && Number(it[1]) === ITERATIONS) {
+    const bytes = new Uint8Array(Buffer.from(s[1], 'base64'));
+    if (bytes.length === 16) salt = bytes;
+  }
+}
 const iv = crypto.getRandomValues(new Uint8Array(12));
 const base = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
 const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);

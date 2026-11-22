@@ -146,7 +146,7 @@
 
     const W = Math.max(220, Math.floor(el.clientWidth));
     const Hh = Math.max(120, Math.floor(el.clientHeight) || 188);
-    const m = { t: 12, r: 40, b: 24, l: 36 };
+    const m = { t: 12, r: 44, b: 24, l: 38 };
     const iw = W - m.l - m.r;
     const ih = Hh - m.t - m.b;
 
@@ -198,6 +198,15 @@
       let d = '';
       px.forEach((p, i) => {
         d += `${!i || p.t - px[i - 1].t > gap ? 'M' : 'L'}${f1(p.x)} ${f1(p.y)}`;
+      });
+      // A soft area under each unbroken run of the series.
+      const base = f1(m.t + ih);
+      const runs = [[]];
+      px.forEach((p, i) => { if (i && p.t - px[i - 1].t > gap) runs.push([]); runs[runs.length - 1].push(p); });
+      runs.forEach((run) => {
+        if (run.length < 2) return;
+        const a = `M${f1(run[0].x)} ${base}` + run.map((p) => `L${f1(p.x)} ${f1(p.y)}`).join('') + `L${f1(run[run.length - 1].x)} ${base}Z`;
+        out.push(`<path class="ch-area" d="${a}"/>`);
       });
       out.push(`<path class="ch-line" d="${d}"/>`);
       if (cfg.dots !== false) {

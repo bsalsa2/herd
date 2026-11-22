@@ -1,6 +1,7 @@
 /* Herd · views
    Pure render functions: data in, HTML string out. Every user-supplied string
-   passes through esc(). Charts are mounted after the HTML is in the DOM. */
+   passes through esc(). Charts are mounted after the HTML is in the DOM.
+   Each page returns { title, crumbs, html, mount? }. */
 (function (H) {
   'use strict';
 
@@ -11,24 +12,58 @@
   const esc = U.esc;
 
   const LEVEL_LABEL = { nominal: 'Nominal', watch: 'Watch', flag: 'Flag', none: 'No data', calib: 'Calib.' };
+  const RANK = { flag: 0, watch: 1, nominal: 2, none: 3 };
   const RANGES = [['14', '14D'], ['30', '30D'], ['90', '90D'], ['all', 'All']];
   const LOG_PAGE = 30;
+  const MU = '<span class="lc">μ</span>';
+  const SIGMA = '<span class="lc">σ</span>';
 
-  const pill = (level) => `<span class="pill ${level}">${LEVEL_LABEL[level]}</span>`;
+  const pill = (level, big) => `<span class="pill ${level}${big ? ' big' : ''}">${LEVEL_LABEL[level]}</span>`;
 
-  function noteHTML(n) {
-    if (n.kind === 'delta') return `${esc(n.label)} <span class="mono">${U.fmtPct(n.pct)}</span> vs 14-day baseline`;
-    if (n.kind === 'recovery') return `Recovering · flagged <span class="mono">${U.fmtDate(n.date)}</span>`;
-    if (n.kind === 'calibrating') return `Baseline calibrating · <span class="mono">n=${n.n}/${n.min}</span>`;
+  function noteHTML(n, compact) {
+    if (n.kind === 'delta') return compact ? `${esc(n.label)} ${U.fmtPct(n.pct)}` : `${esc(n.label)} ${U.fmtPct(n.pct)} vs 14-day baseline`;
+    if (n.kind === 'recovery') return `Recovering · flagged ${U.fmtDate(n.date)}`;
+    if (n.kind === 'calibrating') return `Baseline calibrating · <span class="lc">n</span>=${n.n}/${n.min}`;
     return esc(n.text);
+  }
+
+  /* ---------- Silhouettes (CC0, PhyloPic) by species preset ------------- */
+  const SPRITES = ['cattle', 'horse', 'sheep', 'goat', 'pig', 'chicken', 'dog', 'cat', 'rabbit'];
+  function sil(species, level, cls) {
+    const p = H.env.profileFor(species);
+    const k = SPRITES.includes(p.key) ? `sp-${p.key}` : 'i-mark';
+    const lv = level === 'flag' || level === 'watch' ? ` ${level}` : '';
+    return `<svg class="sil${lv}${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#${k}"/></svg>`;
   }
 
   function speciesLine(s) {
     return [s.species, s.breed].filter(Boolean).map(esc).join(' · ');
   }
 
+  function storageBanner() {
+    return S.isPersistent() ? '' : '<div class="banner" role="alert">Browser storage is unavailable (private mode or storage full). Changes will be lost on reload, so use Export to keep them.</div>';
+  }
+
+  function vhead(tag, title, sub, actions) {
+    return `<div class="vhead">
+      <div>
+        <div class="vhead-tag"><span class="tag">${tag}</span><span class="hatch" aria-hidden="true"></span></div>
+        <h1 class="display">${title}</h1>
+        ${sub ? `<p class="vsub">${sub}</p>` : ''}
+      </div>
+      ${actions ? `<div class="vhead-actions">${actions}</div>` : ''}
+    </div>`;
+  }
+
+  function dlgHead(eyebrow, titleHTML) {
+    return `<div class="dlg-head">
+      <div><p class="eyebrow">${eyebrow}</p><h2 class="dlg-title" id="dialog-title">${titleHTML}</h2></div>
+      <button type="button" class="btn btn-quiet btn-sm" data-action="close-dialog" aria-label="Close">Close <kbd>esc</kbd></button>
+    </div>`;
+  }
+
   /* ======================================================================
-     Overview
+     Field (overview)
      ====================================================================== */
 
   function overview(state) {
@@ -36,94 +71,120 @@
     const items = S.subjects().map((s) => ({ s, a: B.analyze(S.entries(s.id)) }));
     const counts = { all: items.length, nominal: 0, watch: 0, flag: 0 };
     items.forEach((it) => { if (it.a.status.level in counts) counts[it.a.status.level]++; });
+    items.sort((x, y) => (RANK[x.a.status.level] - RANK[y.a.status.level]) || (x.s.id < y.s.id ? -1 : 1));
 
     const filter = state.filter;
     const shown = filter === 'all' ? items : items.filter((it) => it.a.status.level === filter);
 
-    const tile = (key, label, n) => `
-      <button type="button" class="tile" data-action="filter" data-filter="${key}" aria-pressed="${filter === key}">
-        <span class="eyebrow">${key === 'all' ? '' : `<i class="dot ${key}"></i>`}${label}</span>
-        <span class="tile-num">${n}</span>
+    const tally = (key, label, n, sub) => `
+      <button type="button" class="tally-btn" data-action="filter" data-filter="${key}" data-k="${key}" aria-pressed="${filter === key}">
+        <span class="k">${key === 'all' ? '' : `<i class="dot ${key}"></i>`}${label}</span>
+        <span class="v${n ? ' has' : ''}">${String(n).padStart(2, '0')}</span>
+        <span class="s">${sub}</span>
       </button>`;
 
     let list;
     if (!items.length) {
       list = `<div class="panel empty">
-          <p>No subjects yet.</p>
-          <p class="muted">Each subject gets a permanent ID and its own baseline.</p>
-          <button type="button" class="btn btn-primary" data-action="new-subject">New subject</button>
+          <p class="big">No subjects yet.</p>
+          <p class="muted">Each animal gets a permanent ID and a baseline of its own.</p>
+          <button type="button" class="btn btn-primary" data-action="new-subject"><span class="plus">+</span> New subject</button>
         </div>`;
     } else if (!shown.length) {
-      list = `<div class="panel empty"><p>No subjects with status ${esc(LEVEL_LABEL[filter])}.</p>
-          <p><button type="button" class="link-btn" data-action="filter" data-filter="all">Show all subjects</button></p></div>`;
+      list = `<div class="panel empty"><p class="big">No subjects on ${esc(LEVEL_LABEL[filter])}.</p>
+          <button type="button" class="btn btn-sm" data-action="filter" data-filter="all">Show all subjects</button></div>`;
     } else {
-      list = `<ul class="list" aria-label="Subjects">
-          <li class="list-head" aria-hidden="true">
-            <span class="eyebrow">ID</span>
-            <span class="eyebrow">Subject</span>
-            <span class="eyebrow">Species</span>
-            <span class="eyebrow h-last">Last entry</span>
-            <span class="eyebrow">Energy · 14D</span>
-            <span class="eyebrow">Signal</span>
-            <span class="eyebrow r">Status</span>
-          </li>
+      list = `<div class="ix" role="list" aria-label="Subjects">
+          <div class="ix-head micro" aria-hidden="true">
+            <span></span><span>ID</span><span>Subject</span><span>Last entry</span><span>Activity · 14D</span><span>Signal</span><span>Status</span><span></span>
+          </div>
           ${shown.map((it) => subjectRow(it, today)).join('')}
-        </ul>`;
+        </div>`;
     }
 
+    const actions = `<button type="button" class="btn" data-action="palette">Search <kbd>&#8984;K</kbd></button>
+      <button type="button" class="btn btn-primary" data-action="new-subject"><span class="plus">+</span> New subject</button>`;
+
     return {
-      title: 'Herd · Subjects',
+      title: 'Herd · Field',
+      crumbs: [{ label: 'Field' }],
       html: `<section class="view">
         ${storageBanner()}
-        <div class="page-head">
-          <div>
-            <p class="eyebrow">Overview</p>
-            <h1 class="page-title">Subjects</h1>
-          </div>
-          <button type="button" class="btn btn-primary" data-action="new-subject">New subject</button>
+        ${vhead('000 · Field', 'Field', `${esc(U.fmtDateLong(today))} · ${items.length} ${items.length === 1 ? 'animal' : 'animals'} on record`, actions)}
+        <div class="tally" role="group" aria-label="Filter subjects by status">
+          ${tally('all', 'Subjects', counts.all, 'On record')}
+          ${tally('nominal', 'Nominal', counts.nominal, 'Within baseline')}
+          ${tally('watch', 'Watch', counts.watch, '20–29% below, or recovering')}
+          ${tally('flag', 'Flag', counts.flag, '30%+ below, or low intake')}
         </div>
-        <div class="hairgrid tiles" role="group" aria-label="Filter subjects by status">
-          ${tile('all', 'Subjects', counts.all)}
-          ${tile('nominal', 'Nominal', counts.nominal)}
-          ${tile('watch', 'Watch', counts.watch)}
-          ${tile('flag', 'Flag', counts.flag)}
-        </div>
-        ${list}
+        ${items.length ? rounds(items, today) : ''}
+        <section class="section" aria-labelledby="ix-h">
+          <div class="section-head"><h2 id="ix-h"><span class="n">001</span>Subjects</h2><span class="section-meta">Most urgent first${filter !== 'all' ? ` · showing ${esc(LEVEL_LABEL[filter])}` : ''}</span></div>
+          ${list}
+        </section>
         ${H.envViews.overviewSummary()}
       </section>`,
     };
+  }
+
+  /* Today's rounds: who still needs today's entry. */
+  function rounds(items, today) {
+    const due = items.filter((it) => !S.entryOn(it.s.id, today));
+    const done = items.length - due.length;
+    const segs = items.length <= 32
+      ? items.map((_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')
+      : `<i class="on" style="flex:${done}"></i><i style="flex:${due.length}"></i>`;
+    const list = due.length
+      ? `<ul class="rounds-list">${due.slice(0, 6).map(({ s, a }) => {
+        const last = a.status.latest;
+        const why = last ? `Last entry ${U.fmtDate(last.date)} · ${U.fmtAgo(last.date, today)}` : 'No entries yet';
+        return `<li class="rounds-item">
+            ${sil(s.species, a.status.level)}
+            <a class="who" href="#/s/${esc(s.id)}"><b>${esc(s.id)}</b><span>${esc(s.name)}</span><span class="why">${esc(why)}</span></a>
+            <button type="button" class="btn btn-sm" data-action="log-entry" data-id="${esc(s.id)}">Log today</button>
+          </li>`;
+      }).join('')}${due.length > 6 ? `<li class="rounds-item"><span></span><span class="muted">and ${due.length - 6} more</span><span></span></li>` : ''}</ul>`
+      : '<p class="rounds-done"><i class="dot nominal"></i>Everyone is logged for today.</p>';
+    return `<section class="rounds" aria-labelledby="rounds-h">
+      <div>
+        <div class="rounds-k"><span class="pulse-dot dot ${due.length ? 'watch' : 'nominal'}"></span><h2 class="micro" id="rounds-h">Today&rsquo;s rounds</h2></div>
+        <p class="rounds-v num">${done}<small>/ ${items.length} logged</small></p>
+        <div class="rounds-bar" aria-hidden="true">${segs}</div>
+      </div>
+      ${list}
+    </section>`;
   }
 
   function subjectRow({ s, a }, today) {
     const st = a.status;
     const last = st.latest;
     const recent = a.entries.slice(-14);
-    const mean = a.current && a.current.ready ? a.current.energy.mean : null;
-    const spark = C.sparkline(recent.map((e) => e.energy), {
-      domain: [1, 5], level: st.level, mean,
-      label: `Energy, last ${recent.length} entries${recent.length ? `, latest ${recent[recent.length - 1].energy} of 5` : ''}`,
+    const mean = a.current && a.current.ready ? a.current.activity.mean : null;
+    const vals = recent.map((e) => e.activity);
+    const hi = Math.max(30, ...vals, mean || 0) * 1.08;
+    const spark = C.sparkline(vals, {
+      width: 104, height: 26, domain: [0, hi], level: st.level, mean,
+      label: `Activity, last ${recent.length} entries${recent.length ? `, latest ${recent[recent.length - 1].activity} min` : ''}`,
     });
     const stale = last && U.daysBetween(last.date, today) > 2;
     const notes = st.notes.slice(0, 2).map(noteHTML).join('<br>');
     const more = st.notes.length > 2 ? `<br><span class="more">+${st.notes.length - 2} more</span>` : '';
+    const sub = [speciesLine(s), `${esc(s.sex)} · ${esc(U.ageLabel(s.ageYears, s.ageRecordedOn, today))}`].filter(Boolean).join(' · ');
 
-    return `<li><a class="subject-row" href="#/s/${esc(s.id)}" aria-label="${esc(s.id)} ${esc(s.name)}, status ${LEVEL_LABEL[st.level]}">
-      <span class="c-id mono">${esc(s.id)}</span>
-      <span class="c-name"><span class="name">${esc(s.name)}</span><span class="sub mono" title="${esc(U.SEX[s.sex])}">${esc(s.sex)} · ${esc(U.ageLabel(s.ageYears, s.ageRecordedOn, today))}</span></span>
-      <span class="c-species">${esc(s.species)}${s.breed ? `<span class="sub">${esc(s.breed)}</span>` : ''}</span>
-      <span class="c-last mono">${last ? `${U.fmtDate(last.date)}<span class="sub${stale ? ' stale' : ''}">${U.fmtAgo(last.date, today)}</span>` : '<span class="sub">—</span>'}</span>
-      <span class="c-spark">${spark}</span>
-      <span class="c-signal">${notes}${more}</span>
-      <span class="c-status">${pill(st.level)}</span>
-    </a></li>`;
-  }
-
-  function storageBanner() {
-    return S.isPersistent() ? '' : `<div class="banner" role="alert">Browser storage is unavailable (private mode or storage full). Changes will be lost on reload — use Export to keep them.</div>`;
+    return `<a class="ix-row" role="listitem" href="#/s/${esc(s.id)}" aria-label="${esc(s.id)} ${esc(s.name)}, status ${LEVEL_LABEL[st.level]}">
+      ${sil(s.species, st.level)}
+      <span class="ix-id">${esc(s.id)}</span>
+      <span class="ix-name"><b data-id="${esc(s.id)}">${esc(s.name)}</b><span>${sub}</span></span>
+      <span class="ix-last">${last ? `<b>${U.fmtDate(last.date)}</b><span class="${stale ? 'stale' : ''}">${U.fmtAgo(last.date, today)}</span>` : '<span>No entries</span>'}</span>
+      <span class="ix-spark">${spark}</span>
+      <span class="ix-sig">${notes}${more}</span>
+      <span class="ix-status">${pill(st.level)}</span>
+      <span class="ix-go" aria-hidden="true">&rarr;</span>
+    </a>`;
   }
 
   /* ======================================================================
-     Subject
+     Subject record
      ====================================================================== */
 
   function subject(state, id) {
@@ -136,65 +197,65 @@
     const first = a.entries[0];
     const todays = S.entryOn(id, today);
     const cfgs = chartConfigs(a, state.range, today);
+    const fact = (k, v) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : '');
 
     const html = `<section class="view">
       ${storageBanner()}
-      <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Subjects</a><span aria-hidden="true">/</span><span class="mono">${esc(s.id)}</span></nav>
-
-      <header class="s-head">
+      <header class="rec-head">
+        <div class="rec-frame" data-level="${st.level}">${sil(s.species, st.level)}</div>
         <div>
-          <div class="s-idrow">
-            <span class="eyebrow">Subject</span>
-            <span class="mono s-id">${esc(s.id)}</span>
-            ${pill(st.level)}
-          </div>
-          <h1 class="s-name">${esc(s.name)}</h1>
+          <div class="rec-id"><span class="tag">Subject record</span>${pill(st.level, true)}</div>
+          <h1 class="rec-title">${esc(s.id)}</h1>
+          <p class="rec-name">${esc(s.name)}${s.breed ? ` <span>· ${esc(s.breed)}</span>` : ''}</p>
           <dl class="facts">
-            <div><dt>Species</dt><dd>${esc(s.species)}</dd></div>
-            ${s.breed ? `<div><dt>Breed</dt><dd>${esc(s.breed)}</dd></div>` : ''}
-            <div><dt>Sex</dt><dd class="mono" title="${esc(U.SEX[s.sex])}">${esc(s.sex)}</dd></div>
-            <div><dt>Age</dt><dd class="mono">${esc(U.ageLabel(s.ageYears, s.ageRecordedOn, today))}</dd></div>
-            <div><dt>Record</dt><dd class="mono">${a.entries.length} ${a.entries.length === 1 ? 'entry' : 'entries'}${first ? ` · since ${U.fmtDate(first.date)}` : ''}</dd></div>
+            ${fact('Species', esc(s.species))}
+            ${fact('Sex', `<span title="${esc(U.SEX[s.sex])}">${esc(s.sex)}</span>`)}
+            ${fact('Age', esc(U.ageLabel(s.ageYears, s.ageRecordedOn, today)))}
+            ${fact('Record', `${a.entries.length} ${a.entries.length === 1 ? 'entry' : 'entries'}`)}
+            ${fact('Since', first ? U.fmtDate(first.date) : '—')}
           </dl>
         </div>
-        <div class="s-actions">
-          <button type="button" class="btn" data-action="edit-subject" data-id="${esc(s.id)}">Edit</button>
-          <button type="button" class="btn btn-danger" data-action="delete-subject" data-id="${esc(s.id)}">Delete</button>
+        <div class="rec-actions">
+          <button type="button" class="btn btn-primary" data-action="focus-entry">${todays ? 'Edit today' : 'Log today'} <kbd>L</kbd></button>
+          <div class="row">
+            <button type="button" class="btn btn-sm" data-action="edit-subject" data-id="${esc(s.id)}">Edit</button>
+            <button type="button" class="btn btn-sm btn-danger" data-action="delete-subject" data-id="${esc(s.id)}">Delete</button>
+          </div>
         </div>
       </header>
 
-      ${signalPanel(st)}
-      ${H.envViews.subjectPanel(s)}
-      ${baselinePanel(a)}
+      ${signalPanel(st, today)}
 
-      <section class="section" aria-labelledby="trends-h">
-        <div class="section-head">
-          <h2 class="eyebrow" id="trends-h">Trends</h2>
-          <div class="seg" role="group" aria-label="Chart range">
-            ${RANGES.map(([k, l]) => `<button type="button" class="seg-btn" data-action="range" data-range="${k}" aria-pressed="${state.range === k}">${l}</button>`).join('')}
-          </div>
+      <div class="rec-grid">
+        <div class="rec-main">
+          ${baselinePanel(a)}
+          <section class="section" aria-labelledby="trends-h">
+            <div class="section-head">
+              <h2 id="trends-h"><span class="n">002</span>Trends</h2>
+              <div class="seg" role="group" aria-label="Chart range">
+                ${RANGES.map(([k, l]) => `<button type="button" class="seg-btn" data-action="range" data-range="${k}" aria-pressed="${state.range === k}">${l}</button>`).join('')}
+              </div>
+            </div>
+            <div class="charts">
+              ${chartCard('energy', 'Energy', '1–5', a, st)}
+              ${chartCard('activity', 'Activity', 'min', a, st)}
+            </div>
+          </section>
         </div>
-        <div class="charts">
-          ${chartCard('energy', 'Energy', '1–5', a, st)}
-          ${chartCard('activity', 'Activity', 'min', a, st)}
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="entry-h">
-        <div class="section-head">
-          <h2 class="eyebrow" id="entry-h">Entry · Today</h2>
-          <span class="section-meta mono">${U.fmtDateLong(today)}${todays ? ' · recorded' : ''}</span>
-        </div>
-        <div class="panel panel-body form-wrap">
-          ${entryForm({ subjectId: s.id, entry: todays, date: today, prefix: 'today', mode: 'inline' })}
-        </div>
-      </section>
-
+        <aside class="rec-side" aria-label="Today">
+          <section class="panel entry-card" id="entry" aria-labelledby="entry-h">
+            <div class="section-head"><h2 id="entry-h">Entry · Today</h2><span class="section-meta">${esc(U.fmtDateLong(today))}${todays ? ' · recorded' : ''}</span></div>
+            ${entryForm({ subjectId: s.id, entry: todays, date: today, prefix: 'today', mode: 'inline' })}
+          </section>
+          ${H.envViews.subjectPanel(s)}
+        </aside>
+      </div>
       ${logPanel(a, state)}
     </section>`;
 
     return {
       title: `${s.id} · ${s.name} · Herd`,
+      crumbs: [{ label: 'Field', href: '#/' }, { label: s.id }],
       html,
       mount(root) {
         root.querySelectorAll('[data-chart]').forEach((el) => C.mount(el, cfgs[el.dataset.chart]));
@@ -205,22 +266,18 @@
   function notFound(id) {
     return {
       title: 'Not found · Herd',
+      crumbs: [{ label: 'Field', href: '#/' }, { label: 'Not found' }],
       html: `<section class="view">
-        <nav class="crumbs"><a href="#/">Subjects</a></nav>
-        <div class="panel empty" style="margin-top:24px">
-          <p>No subject with ID <span class="mono">${esc(id)}</span>.</p>
-          <p class="muted">It may have been deleted, or the data in this browser was replaced by an import.</p>
-          <p><a href="#/">Back to subjects</a></p>
-        </div>
+        ${vhead('404', 'Not found', `No subject with ID <span class="mono">${esc(id)}</span>. It may have been deleted, or the data in this browser was replaced by an import.`, '<a class="btn" href="#/">Back to the field</a>')}
       </section>`,
     };
   }
 
-  function signalPanel(st) {
-    const when = st.latest ? `Latest entry <span class="mono">${U.fmtDate(st.latest.date)}</span>` : '';
-    return `<section class="panel signal" aria-label="Current signal">
-      <span class="eyebrow" style="line-height:22px">Signal</span>
-      <ul class="signal-notes">${st.notes.map((n) => `<li class="${n.level === 'flag' || n.level === 'watch' ? 't-' + n.level : ''}"><span style="color:var(--text)">${noteHTML(n)}</span></li>`).join('')}</ul>
+  function signalPanel(st, today) {
+    const when = st.latest ? `Latest entry ${U.fmtDate(st.latest.date)}<br>${U.fmtAgo(st.latest.date, today)}` : 'No entries yet';
+    return `<section class="signal" data-level="${st.level}" aria-label="Current signal">
+      <span class="signal-level">${LEVEL_LABEL[st.level]}</span>
+      <ul class="signal-notes">${st.notes.map((n) => `<li class="${n.level === 'flag' || n.level === 'watch' ? 't-' + n.level : ''}"><span>${noteHTML(n)}</span></li>`).join('')}</ul>
       <span class="signal-when">${when}</span>
     </section>`;
   }
@@ -228,33 +285,34 @@
   function baselinePanel(a) {
     const c = a.current;
     const head = (meta) => `<div class="section-head">
-        <h2 class="eyebrow" id="baseline-h">Baseline · 14D</h2>
+        <h2 id="baseline-h"><span class="n">001</span>Baseline · 14D</h2>
         <span class="section-meta">${meta}</span>
       </div>`;
+    const bar = (n) => `<div class="calib-bar" aria-hidden="true">${Array.from({ length: B.CONFIG.minEntries }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
 
     if (!c) {
       return `<section class="section" aria-labelledby="baseline-h">${head('No entries yet')}
-        <div class="panel panel-body muted">The baseline forms from the first ${B.CONFIG.minEntries} entries. Record today's entry below to begin.</div></section>`;
+        <div class="calib">The baseline forms from the first ${B.CONFIG.minEntries} entries. Log today&rsquo;s entry to begin.${bar(0)}</div></section>`;
     }
 
-    const meta = `<span class="mono">${U.fmtDate(c.from)} – ${U.fmtDate(c.to)}</span> · <span class="mono">n=${c.n}</span> · reference for <span class="mono">${U.fmtDate(c.date)}</span>`;
+    const meta = `${U.fmtDate(c.from)} – ${U.fmtDate(c.to)} · <span class="lc">n</span>=${c.n} · reference for ${U.fmtDate(c.date)}`;
 
     if (!c.ready) {
       return `<section class="section" aria-labelledby="baseline-h">${head(meta)}
-        <div class="panel panel-body muted">Calibrating: ${c.n} of ${B.CONFIG.minEntries} entries in the window. Energy and activity checks start at ${B.CONFIG.minEntries}; low intake is flagged from day one.</div></section>`;
+        <div class="calib">Calibrating: ${c.n} of ${B.CONFIG.minEntries} entries in the window. Energy and activity checks start at ${B.CONFIG.minEntries}; low intake is flagged from day one.${bar(c.n)}</div></section>`;
     }
 
-    const stat = (k, v, u, sub) => `<div class="stat"><span class="eyebrow">${k}</span><span class="stat-v">${v}${u ? `<span class="u">${u}</span>` : ''}</span><span class="stat-s">${sub}</span></div>`;
+    const kpi = (k, v, u, sub) => `<div class="kpi"><span class="k">${k}</span><span class="v num">${v}${u ? `<span class="u">${u}</span>` : ''}</span><span class="s">${sub}</span></div>`;
     const e = c.energy;
     const act = c.activity;
     const w = c.wake;
 
     return `<section class="section" aria-labelledby="baseline-h">${head(meta)}
-      <div class="hairgrid stats">
-        ${stat('Energy <span class="greek">μ</span>', U.fmtNum(e.mean, 1), '/ 5', `σ ${U.fmtNum(e.sd, 2)} · range ${e.min}–${e.max}`)}
-        ${stat('Activity <span class="greek">μ</span>', U.fmtNum(act.mean, 0), 'min', `σ ${U.fmtNum(act.sd, 1)} · range ${act.min}–${act.max}`)}
-        ${stat('Wake <span class="greek">μ</span>', w ? U.minToTime(w.mean) : '—', '', w ? `σ ${Math.round(w.sd)} min · n=${w.n}` : 'no wake times logged')}
-        ${stat('Intake full', U.fmtNum(c.intakeFull * 100, 0), '%', `${Math.round(c.intakeFull * c.n)} of ${c.n} days`)}
+      <div class="kpis">
+        ${kpi(`Energy ${MU}`, U.fmtNum(e.mean, 1), '/ 5', `${SIGMA} ${U.fmtNum(e.sd, 2)} · ${e.min}–${e.max}`)}
+        ${kpi(`Activity ${MU}`, U.fmtNum(act.mean, 0), 'min', `${SIGMA} ${U.fmtNum(act.sd, 1)} · ${act.min}–${act.max}`)}
+        ${kpi(`Wake ${MU}`, w ? U.minToTime(w.mean) : '—', '', w ? `${SIGMA} ${Math.round(w.sd)} min · <span class="lc">n</span>=${w.n}` : 'no wake times logged')}
+        ${kpi('Intake full', U.fmtNum(c.intakeFull * 100, 0), '%', `${Math.round(c.intakeFull * c.n)} of ${c.n} days`)}
       </div>
     </section>`;
   }
@@ -270,17 +328,16 @@
         + (d != null ? `<span class="readout-d ${lv}">${U.fmtPct(d)}</span>` : '');
     }
     return `<article class="panel chart-card">
-      <div class="panel-head">
-        <div>
-          <h3 class="eyebrow">${label} <span class="mono" style="letter-spacing:0;text-transform:none">${unitLabel}</span></h3>
-        </div>
+      <div class="chart-top">
+        <h3>${label}<span>${unitLabel}</span></h3>
         <div class="readout" title="Latest entry vs its 14-day baseline">${readout}</div>
       </div>
       <div class="chart" data-chart="${key}" tabindex="0"></div>
       <div class="legend" aria-hidden="true">
-        <span><i class="lg lg-line"></i>Daily</span>
-        <span><i class="lg lg-band"></i>Baseline μ ± 1σ</span>
-        <span><i class="lg lg-thr"></i>${U.MINUS}30% flag</span>
+        <span><i class="lg"></i>Daily</span>
+        <span><i class="lg lg-band"></i>${MU} ± 1${SIGMA}</span>
+        <span><i class="lg lg-warn"></i>${U.MINUS}${B.CONFIG.watchDrop}%</span>
+        <span><i class="lg lg-thr"></i>${U.MINUS}${B.CONFIG.flagDrop}%</span>
       </div>
     </article>`;
   }
@@ -295,10 +352,11 @@
     const rangeStart = range === 'all' ? recordStart : U.addDays(today, -(Number(range) - 1));
     const start = rangeStart > recordStart ? rangeStart : recordStart;
     const c = a.current && a.current.ready ? a.current : null;
-    // Baseline band = mean ± 1 SD; reference lines = mean and the −30% flag threshold.
+    // Baseline band = mean ± 1 SD; reference lines = mean, watch and flag thresholds.
     const band = (key) => (c ? { lo: c[key].mean - c[key].sd, hi: c[key].mean + c[key].sd } : null);
     const lines = (key) => (c ? [
       { value: c[key].mean, kind: 'mean', label: 'μ' },
+      { value: c[key].mean * (1 - B.CONFIG.watchDrop / 100), kind: 'warn', label: `${U.MINUS}${B.CONFIG.watchDrop}%` },
       { value: c[key].mean * (1 - B.CONFIG.flagDrop / 100), kind: 'thr', label: `${U.MINUS}${B.CONFIG.flagDrop}%` },
     ] : []);
     const pts = (key) => entries.filter((e) => e.date >= start).map((e) => {
@@ -344,46 +402,43 @@
     const today = U.todayISO();
     const date = e.date || o.date || today;
     const isEdit = Boolean(e.id);
+    const label = isEdit ? 'Update entry' : 'Save entry';
 
     return `<form class="entry-form" data-form="entry" data-subject="${esc(o.subjectId)}" data-entry-id="${esc(e.id || '')}" data-mode="${o.mode}" novalidate>
-      <div class="ef-a">
-        <div class="field f-date">
+      <div class="ef-row">
+        <div class="field">
           <label for="${p}-date">Date</label>
           <input class="input mono" type="date" id="${p}-date" name="date" value="${esc(date)}" max="${today}" required>
         </div>
-        <div class="field f-wake">
+        <div class="field">
           <label for="${p}-wake">Wake</label>
           <input class="input mono" type="time" id="${p}-wake" name="wake" value="${esc(e.wake || '')}">
         </div>
-        <div class="field f-activity">
-          <label for="${p}-activity">Activity<span class="unit">min</span></label>
-          <input class="input mono" type="number" id="${p}-activity" name="activity" inputmode="numeric" min="0" max="1440" step="1" placeholder="0" value="${e.activity != null ? esc(e.activity) : ''}" required>
-        </div>
-        <fieldset class="field f-intake">
-          <legend>Food intake</legend>
-          ${radios(p, 'intake', [['full', 'Full'], ['partial', 'Partial'], ['low', 'Low']], e.intake)}
-        </fieldset>
-        <fieldset class="field f-energy">
-          <legend>Energy<span class="unit">1–5</span></legend>
-          ${radios(p, 'energy', [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], e.energy, 'mono')}
-        </fieldset>
       </div>
-      <div class="ef-b">
-        <div class="field">
-          <label for="${p}-behavior">Behavior note</label>
-          <textarea class="input" id="${p}-behavior" name="behavior" rows="2" maxlength="500" placeholder="Routine, mood, exercise, context">${esc(e.behavior || '')}</textarea>
-        </div>
-        <div class="field">
-          <label for="${p}-anomaly">Anomaly note</label>
-          <textarea class="input" id="${p}-anomaly" name="anomaly" rows="2" maxlength="500" placeholder="Anything unusual: appetite, gait, stool, sleep">${esc(e.anomaly || '')}</textarea>
-        </div>
+      <div class="field">
+        <label for="${p}-activity">Activity<span class="unit">minutes</span></label>
+        <input class="input mono" type="number" id="${p}-activity" name="activity" inputmode="numeric" min="0" max="1440" step="1" placeholder="0" value="${e.activity != null ? esc(e.activity) : ''}" required>
       </div>
-      <div class="ef-foot">
-        <div class="preview" data-preview aria-live="polite"></div>
-        <div class="ef-actions">
-          ${o.mode === 'dialog' ? '<button type="button" class="btn" data-action="close-dialog">Cancel</button>' : ''}
-          <button type="submit" class="btn btn-primary" data-submit data-label="${isEdit ? 'Update entry' : 'Save entry'}">${isEdit ? 'Update entry' : 'Save entry'}</button>
-        </div>
+      <fieldset class="field">
+        <legend>Food intake</legend>
+        ${radios(p, 'intake', [['full', 'Full'], ['partial', 'Partial'], ['low', 'Low']], e.intake)}
+      </fieldset>
+      <fieldset class="field">
+        <legend>Energy<span class="unit">1–5</span></legend>
+        ${radios(p, 'energy', [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], e.energy, 'mono')}
+      </fieldset>
+      <div class="field">
+        <label for="${p}-behavior">Behavior note</label>
+        <textarea class="input" id="${p}-behavior" name="behavior" rows="2" maxlength="500" placeholder="Routine, mood, exercise, context">${esc(e.behavior || '')}</textarea>
+      </div>
+      <div class="field">
+        <label for="${p}-anomaly">Anomaly note</label>
+        <textarea class="input" id="${p}-anomaly" name="anomaly" rows="2" maxlength="500" placeholder="Anything unusual: appetite, gait, stool, sleep">${esc(e.anomaly || '')}</textarea>
+      </div>
+      <div class="preview" data-preview aria-live="polite"></div>
+      <div class="ef-actions">
+        ${o.mode === 'dialog' ? '<button type="button" class="btn" data-action="close-dialog">Cancel</button>' : ''}
+        <button type="submit" class="btn btn-primary" data-submit data-label="${label}">${label}</button>
       </div>
       <p class="form-error" data-error role="alert"></p>
     </form>`;
@@ -437,7 +492,7 @@
   }
 
   /* Live preview: evaluates the in-progress entry against the baseline for
-     its date, so the user sees a flag before saving it. */
+     its date, so the flag shows before the entry is saved. */
   function updatePreview(form) {
     const out = form.querySelector('[data-preview]');
     const submit = form.querySelector('[data-submit]');
@@ -447,33 +502,31 @@
     const entryId = form.dataset.entryId || null;
     const { values } = readEntryForm(form);
     const all = S.entries(subjectId);
-    const parts = [];
 
     const clash = U.isISO(values.date) ? all.find((e) => e.date === values.date && e.id !== entryId) : null;
     if (submit) submit.textContent = clash ? 'Save & replace' : submit.dataset.label;
 
     if (!U.isISO(values.date)) {
-      out.innerHTML = '<span class="pv-label">Choose a date to preview.</span>';
+      out.innerHTML = '<span class="pv-label">Choose a date to preview the signal</span>';
       return;
     }
 
     const base = B.baselineFor(all, values.date, entryId);
     const complete = U.INTAKE[values.intake] && values.energy >= 1 && String(values.activity).trim() !== '' && Number.isFinite(Number(values.activity));
+    const parts = [];
 
     if (complete) {
       const ev = B.evaluate({ intake: values.intake, energy: Number(values.energy), activity: Number(values.activity) }, base);
-      parts.push(`<span class="pv-label">Preview</span>${pill(ev.level)}`);
-      parts.push(`<span>${ev.notes.length ? ev.notes.map(noteHTML).join(' · ') : (base.ready ? 'Within 14-day baseline' : 'Intake normal')}</span>`);
+      parts.push(`<div class="pv-top"><span class="pv-label">Live preview</span>${pill(ev.level)}</div>`);
+      parts.push(`<div class="pv-notes">${ev.notes.length ? ev.notes.map(noteHTML).join('<br>') : (base.ready ? 'Within its 14-day baseline' : 'Intake normal')}</div>`);
     } else {
-      parts.push('<span class="pv-label">Set intake, energy and activity to preview the signal.</span>');
+      parts.push('<div class="pv-top"><span class="pv-label">Live preview</span></div><div class="pv-notes muted">Set activity, intake and energy to see the signal before you save.</div>');
     }
 
-    if (base.ready) {
-      parts.push(`<span class="pv-base mono">vs μ energy ${U.fmtNum(base.energy.mean, 1)} · activity ${U.fmtNum(base.activity.mean, 0)} min · n=${base.n}</span>`);
-    } else {
-      parts.push(`<span class="pv-base mono">baseline calibrating · n=${base.n}/${B.CONFIG.minEntries}</span>`);
-    }
-    if (clash) parts.push(`<span class="pv-warn">Replaces the existing entry for <span class="mono">${U.fmtDate(values.date)}</span>.</span>`);
+    parts.push(base.ready
+      ? `<div class="pv-base">vs ${MU} energy ${U.fmtNum(base.energy.mean, 1)} · activity ${U.fmtNum(base.activity.mean, 0)} min · <span class="lc">n</span>=${base.n}</div>`
+      : `<div class="pv-base">baseline calibrating · <span class="lc">n</span>=${base.n}/${B.CONFIG.minEntries}</div>`);
+    if (clash) parts.push(`<div class="pv-warn">Replaces the existing entry for ${U.fmtDate(values.date)}.</div>`);
 
     out.innerHTML = parts.join('');
   }
@@ -483,16 +536,13 @@
   function logPanel(a, state) {
     const rows = a.entries.slice().reverse();
     const shown = state.logAll ? rows : rows.slice(0, LOG_PAGE);
-    const meta = rows.length
-      ? `<span class="mono">${rows.length}</span> ${rows.length === 1 ? 'entry' : 'entries'} · newest first`
-      : 'No entries';
+    const meta = rows.length ? `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} · newest first` : 'No entries';
 
     let body;
     if (!rows.length) {
-      body = '<div class="panel empty"><p>No entries yet.</p><p class="muted">Use the form above to record the first day.</p></div>';
+      body = '<div class="panel empty"><p class="big">No entries yet.</p><p class="muted">Use today&rsquo;s entry form to record the first day.</p></div>';
     } else {
-      body = `<div class="panel">
-        <div class="log-wrap">
+      body = `<div class="log-wrap">
           <table class="log">
             <thead><tr>
               <th scope="col">Date</th>
@@ -507,13 +557,12 @@
             <tbody>${shown.map((e) => logRow(e, a.evals.get(e.id))).join('')}</tbody>
           </table>
         </div>
-        ${rows.length > shown.length ? `<div class="log-foot"><button type="button" class="btn btn-sm" data-action="log-all">Show all ${rows.length} entries</button></div>` : ''}
-      </div>`;
+        ${rows.length > shown.length ? `<div class="log-foot"><button type="button" class="btn btn-sm" data-action="log-all">Show all ${rows.length} entries</button></div>` : ''}`;
     }
 
     return `<section class="section" aria-labelledby="log-h">
       <div class="section-head">
-        <h2 class="eyebrow" id="log-h">Log</h2>
+        <h2 id="log-h"><span class="n">003</span>Log</h2>
         <span class="section-meta">${meta}</span>
       </div>
       ${body}
@@ -532,15 +581,15 @@
     const notes = (e.behavior ? esc(e.behavior) : '')
       + (e.anomaly ? `<span class="anomaly">${esc(e.anomaly)}</span>` : '');
     const signal = ev.notes.length
-      ? `<ul class="sig-notes">${ev.notes.map((n) => `<li>${noteHTML(n)}</li>`).join('')}</ul>`
-      : (ev.calibrating ? `<ul class="sig-notes"><li>Baseline <span class="mono">n=${ev.base.n}/${B.CONFIG.minEntries}</span></li></ul>` : '');
+      ? `<ul class="sig-notes">${ev.notes.map((n) => `<li>${noteHTML(n, true)}</li>`).join('')}</ul>`
+      : (ev.calibrating ? `<ul class="sig-notes"><li>Baseline <span class="lc">n</span>=${ev.base.n}/${B.CONFIG.minEntries}</li></ul>` : '');
 
     return `<tr class="lv-${ev.level}">
-      <td class="c-date"><span class="mono v">${U.fmtDate(e.date)}</span><span class="d">${U.fmtWeekday(e.date)}</span></td>
-      <td class="c-wake" data-label="Wake"><span class="mono v">${e.wake ? esc(e.wake) : '—'}</span>${wakeDelta}</td>
+      <td class="c-date"><span class="v">${U.fmtDate(e.date)}</span><span class="d">${U.fmtWeekday(e.date)}</span></td>
+      <td class="c-wake" data-label="Wake"><span class="v">${e.wake ? esc(e.wake) : '—'}</span>${wakeDelta}</td>
       <td class="c-intake" data-label="Intake"><span class="intake-${e.intake}">${U.INTAKE[e.intake]}</span></td>
-      <td class="c-energy r" data-label="Energy"><span class="mono v">${e.energy}</span>${delta(dE)}</td>
-      <td class="c-activity r" data-label="Activity"><span class="mono v">${e.activity}<span class="u">min</span></span>${delta(dA)}</td>
+      <td class="c-energy r" data-label="Energy"><span class="v">${e.energy}</span>${delta(dE)}</td>
+      <td class="c-activity r" data-label="Activity"><span class="v">${e.activity}<span class="u">min</span></span>${delta(dA)}</td>
       <td class="c-notes" data-label="Notes">${notes || '<span class="none">—</span>'}</td>
       <td class="c-signal">${pill(level)}${signal}</td>
       <td class="c-actions"><span class="row-actions">
@@ -562,18 +611,12 @@
     const sexes = Object.keys(U.SEX).map((k) => `<option value="${k}"${s && s.sex === k ? ' selected' : ''}>${k} — ${U.SEX[k]}</option>`).join('');
 
     return `<form data-form="subject" data-id="${s ? esc(s.id) : ''}" data-age-shown="${esc(ageShown)}" novalidate>
-      <div class="dlg-head">
-        <div>
-          <p class="eyebrow">${isEdit ? 'Edit subject' : 'New subject'}</p>
-          <h2 class="dlg-title" id="dialog-title"><span class="mono">${esc(s ? s.id : S.peekNextId())}</span></h2>
-        </div>
-        <button type="button" class="btn btn-quiet btn-sm" data-action="close-dialog" aria-label="Close">Close</button>
-      </div>
+      ${dlgHead(isEdit ? 'Edit subject' : 'New subject · ID is permanent', esc(s ? s.id : S.peekNextId()))}
       <div class="dlg-body">
         <div class="form-grid">
           <div class="field span-2">
             <label for="sf-name">Name</label>
-            <input class="input" id="sf-name" name="name" maxlength="60" required value="${s ? esc(s.name) : ''}" placeholder="e.g. Dog 3" autocomplete="off">
+            <input class="input" id="sf-name" name="name" maxlength="60" required value="${s ? esc(s.name) : ''}" placeholder="e.g. Dog 3" autocomplete="off" autofocus>
           </div>
           <div class="field">
             <label for="sf-species">Species</label>
@@ -603,16 +646,12 @@
     </form>`;
   }
 
-  function entryDialog(subjectRec, entry) {
-    return `<div class="dlg-head">
-        <div>
-          <p class="eyebrow">Edit entry · <span class="mono" style="letter-spacing:0">${esc(subjectRec.id)}</span></p>
-          <h2 class="dlg-title" id="dialog-title">${esc(subjectRec.name)} · <span class="mono">${U.fmtDate(entry.date)}</span></h2>
-        </div>
-        <button type="button" class="btn btn-quiet btn-sm" data-action="close-dialog" aria-label="Close">Close</button>
-      </div>
-      <div class="dlg-body form-wrap">
-        ${entryForm({ subjectId: subjectRec.id, entry, prefix: 'dlg', mode: 'dialog' })}
+  function entryDialog(subjectRec, entry, date) {
+    const isEdit = Boolean(entry);
+    const d = entry ? entry.date : date;
+    return `${dlgHead(`${isEdit ? 'Edit entry' : 'New entry'} · <span class="lc">${esc(subjectRec.id)}</span>`, `${esc(subjectRec.name)} · ${U.fmtDate(d)}`)}
+      <div class="dlg-body">
+        ${entryForm({ subjectId: subjectRec.id, entry, date, prefix: 'dlg', mode: 'dialog' })}
       </div>`;
   }
 
@@ -634,6 +673,6 @@
 
   H.views = {
     overview, subject, subjectForm, entryDialog, confirmBody,
-    readEntryForm, markErrors, updatePreview, noteHTML, pill, LEVEL_LABEL,
+    readEntryForm, markErrors, updatePreview, noteHTML, pill, sil, dlgHead, vhead, LEVEL_LABEL,
   };
 })(window.Herd = window.Herd || {});

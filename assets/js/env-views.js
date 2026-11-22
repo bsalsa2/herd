@@ -1,7 +1,7 @@
 /* Herd · environment views
    Sensor hub (#/env), the environment panel on each subject page, the summary
-   on the overview, and the dialogs for spaces, sensors, readings and needs.
-   Blocks marked data-live re-render in place as readings arrive. */
+   on the field overview, and the dialogs for spaces, sensors, readings and
+   needs. Blocks marked data-live re-render in place as readings arrive. */
 (function (H) {
   'use strict';
 
@@ -107,26 +107,34 @@
     </div>`;
   }
 
+  function tir(t) {
+    if (!t) return '';
+    const pct = Math.round(t.share * 100);
+    const cls = t.share >= 0.95 ? '' : t.share >= 0.8 ? 't-watch' : 't-flag';
+    return `<span class="tir ${cls}"><span class="tir-bar" aria-hidden="true"><i style="width:${pct}%"></i></span><span class="tir-t">${pct}% in range · 24h</span></span>`;
+  }
+
+  /* Live sensor tally used by the app's top bar. */
+  function sensorTally() {
+    const sensors = ES.sensors();
+    const live = sensors.filter((s) => { const k = H.sensors.status(s).key; return k === 'live' || k === 'manual'; }).length;
+    return { live, total: sensors.length };
+  }
+
   /* ======================================================================
      Environment page
      ====================================================================== */
 
   function envPage() {
+    const actions = `${unitToggle()}
+      <button type="button" class="btn" data-action="new-space"><span class="plus">+</span> Space</button>
+      <button type="button" class="btn btn-primary" data-action="new-sensor"><span class="plus">+</span> Sensor</button>`;
     return {
       title: 'Herd · Environment',
+      crumbs: [{ label: 'Field', href: '#/' }, { label: 'Environment' }],
       html: `<section class="view">
         ${ES.isPersistent() ? '' : '<div class="banner" role="alert">Browser storage is unavailable or full. Sensor readings will not survive a reload.</div>'}
-        <div class="page-head">
-          <div>
-            <p class="eyebrow">Environment</p>
-            <h1 class="page-title">Spaces &amp; sensors</h1>
-          </div>
-          <div class="head-actions">
-            ${unitToggle()}
-            <button type="button" class="btn" data-action="new-space">Add space</button>
-            <button type="button" class="btn btn-primary" data-action="new-sensor">Add sensor</button>
-          </div>
-        </div>
+        ${V.vhead('004 · Environment', 'Environment', 'Spaces, the animals in them, and the sensors that watch them. Each space must suit every resident.', actions)}
         <div data-live="env-body">${envBody().html}</div>
         ${connectGuide()}
       </section>`,
@@ -153,44 +161,46 @@
     const unassigned = S.subjects().filter((s) => !ES.spaceOf(s.id));
 
     if (!spaces.length && !sensors.length) {
-      return { html: `<div class="panel empty env-none">
-        <p class="env-none-title">No sensors connected yet</p>
-        <p class="muted">Add a sensor when your hardware is ready, or log readings by hand. Spaces and climate checks appear here once you do.</p>
-        <div class="env-none-actions">
-          <button type="button" class="btn btn-primary" data-action="new-sensor">Add sensor</button>
-          <button type="button" class="btn" data-action="new-space">Add space</button>
+      return { html: `<div class="panel empty">
+        <p class="big">No sensors connected yet.</p>
+        <p class="muted">Add a sensor when your hardware is ready, log readings by hand, or start with a simulated one. Spaces and climate checks appear here once you do.</p>
+        <div class="vhead-actions" style="justify-content:center">
+          <button type="button" class="btn btn-primary" data-action="new-sensor"><span class="plus">+</span> Sensor</button>
+          <button type="button" class="btn" data-action="new-space"><span class="plus">+</span> Space</button>
         </div>
       </div>` };
     }
-    const tiles = `<div class="hairgrid tiles env-tiles">
-      <div class="tile static"><span class="eyebrow">Spaces</span><span class="tile-num">${spaces.length}</span></div>
-      <div class="tile static"><span class="eyebrow"><i class="dot nominal"></i>Sensors reporting</span><span class="tile-num">${live}<span class="tile-of"> / ${sensors.length}</span></span></div>
-      <div class="tile static"><span class="eyebrow"><i class="dot ${attention ? 'watch' : ''}"></i>Spaces needing attention</span><span class="tile-num">${attention}</span></div>
-      <div class="tile static"><span class="eyebrow">Animals without a space</span><span class="tile-num">${unassigned.length}</span></div>
+
+    const cell = (label, v, sub, dot, k) => `<div class="tally-btn" data-k="${k || ''}"><span class="k">${dot ? `<i class="dot ${dot}"></i>` : ''}${label}</span><span class="v${v ? ' has' : ''}">${String(v).padStart(2, '0')}</span><span class="s">${sub}</span></div>`;
+    const tally = `<div class="tally">
+      ${cell('Spaces', spaces.length, 'Rooms, pens, stalls')}
+      ${cell('Reporting', live, `of ${sensors.length} ${sensors.length === 1 ? 'sensor' : 'sensors'}`, live ? 'nominal' : 'none')}
+      ${cell('Attention', attention, attention === 1 ? 'space on watch or flag' : 'spaces on watch or flag', attention ? 'watch' : '', attention ? 'watch' : '')}
+      ${cell('Unassigned', unassigned.length, unassigned.length === 1 ? 'animal without a space' : 'animals without a space')}
     </div>`;
 
     const spaceList = spaces.length
       ? analyses.map((a) => spaceCard(a)).join('')
-      : `<div class="panel empty"><p>No spaces yet.</p><p class="muted">A space is a room, pen, stall or enclosure. Animals live in a space; sensors sit in one.</p><button type="button" class="btn btn-primary" data-action="new-space">Add space</button></div>`;
+      : `<div class="panel empty"><p class="big">No spaces yet.</p><p class="muted">A space is a room, pen, stall or enclosure. Animals live in a space; sensors sit in one.</p><button type="button" class="btn btn-primary" data-action="new-space"><span class="plus">+</span> Space</button></div>`;
 
     const unassignedNote = unassigned.length
-      ? `<p class="hint env-hint">Not in a space: ${unassigned.map((s) => `<a class="mono" href="#/s/${esc(s.id)}">${esc(s.id)}</a> ${esc(s.name)}`).join(', ')}. Add them to a space so their needs are checked.</p>`
+      ? `<p class="hint" style="margin-top:14px">Not in a space: ${unassigned.map((s) => `<a href="#/s/${esc(s.id)}">${esc(s.id)}</a> ${esc(s.name)}`).join(', ')}. Add them to a space so their needs are checked.</p>`
       : '';
 
     return {
-      html: `${tiles}
+      html: `${tally}
         <section class="section" aria-labelledby="spaces-h">
           <div class="section-head">
-            <h2 class="eyebrow" id="spaces-h">Spaces</h2>
-            <span class="section-meta">Ranges come from each resident's species preset and overrides</span>
+            <h2 id="spaces-h"><span class="n">001</span>Spaces</h2>
+            <span class="section-meta">Ranges come from each resident&rsquo;s species preset and overrides</span>
           </div>
           <div class="space-list">${spaceList}</div>
           ${unassignedNote}
         </section>
         <section class="section" aria-labelledby="sensors-h">
           <div class="section-head">
-            <h2 class="eyebrow" id="sensors-h">Sensors</h2>
-            <span class="section-meta"><span class="mono">${live}</span> of <span class="mono">${sensors.length}</span> reporting · runs while Herd is open</span>
+            <h2 id="sensors-h"><span class="n">002</span>Sensors</h2>
+            <span class="section-meta">${live} of ${sensors.length} reporting · read while Herd is open</span>
           </div>
           ${sensorTable(sensors, statuses)}
         </section>`,
@@ -201,8 +211,11 @@
     const u = a.unit;
     const sp = a.space;
     const residents = a.residents.length
-      ? a.residents.map(({ subject }) => `<a class="chip" href="#/s/${esc(subject.id)}"><span class="mono">${esc(subject.id)}</span> ${esc(subject.name)}</a>`).join('')
-      : '<span class="muted">No residents yet</span>';
+      ? a.residents.map(({ subject }) => {
+        const st = H.baseline.analyze(S.entries(subject.id)).status.level;
+        return `<a class="chip" href="#/s/${esc(subject.id)}">${V.sil(subject.species, st)}<b>${esc(subject.id)}</b>${esc(subject.name)}</a>`;
+      }).join('')
+      : '<span class="muted" style="font-size:13px">No residents yet</span>';
 
     // Temperature and humidity always show; gases and THI only when measured.
     const metrics = E.ORDER.filter((k) => a.current[k] || ((k === 'temp' || k === 'humidity') && a.needs[k]));
@@ -215,10 +228,10 @@
       const id = `${sp.id}:${k}`;
       chartCfgs.set(id, spaceChartCfg(a, k, u));
       return `<article class="panel chart-card">
-        <div class="panel-head"><h4 class="eyebrow">${esc(E.METRICS[k].label)} <span class="mono unit-tag">${esc(E.unitLabel(k, u))} · 24h</span></h4></div>
+        <div class="chart-top"><h3>${esc(E.METRICS[k].label)}<span>${esc(E.unitLabel(k, u))} · 24h</span></h3></div>
         <div class="chart" data-env-chart="${esc(id)}" data-chart="env-${esc(id)}" tabindex="0"></div>
         <div class="legend" aria-hidden="true">
-          <span><i class="lg lg-line"></i>Reading</span>
+          <span><i class="lg"></i>Reading</span>
           ${E.METRICS[k].type === 'range' && a.needs[k] ? '<span><i class="lg lg-band"></i>Acceptable range</span>' : ''}
           ${E.METRICS[k].type === 'ceiling' && a.needs[k] ? '<span><i class="lg lg-warn"></i>Watch</span><span><i class="lg lg-thr"></i>Limit</span>' : ''}
         </div>
@@ -227,19 +240,19 @@
 
     return `<article class="panel space" aria-labelledby="h-${esc(sp.id)}">
       <div class="space-head">
-        <div class="space-title">
-          <div class="s-idrow"><span class="mono s-id">${esc(sp.id)}</span>${statusPill(a.level)}</div>
+        <div>
+          <div class="space-idrow"><span class="tag">${esc(sp.id)}</span>${statusPill(a.level)}</div>
           <h3 class="space-name" id="h-${esc(sp.id)}">${esc(sp.name)}</h3>
           <div class="chips">${residents}</div>
         </div>
-        <div class="s-actions">
-          <button type="button" class="btn btn-sm" data-action="new-sensor" data-space="${esc(sp.id)}">Add sensor</button>
+        <div class="space-actions">
+          <button type="button" class="btn btn-sm" data-action="new-sensor" data-space="${esc(sp.id)}"><span class="plus">+</span> Sensor</button>
           <button type="button" class="btn btn-sm" data-action="edit-space" data-id="${esc(sp.id)}">Edit</button>
         </div>
       </div>
-      <ul class="env-notes">${a.notes.map((n) => `<li class="t-${n.level}"><i class="dot ${n.level}"></i><span>${esc(n.text)}</span></li>`).join('')}</ul>
-      ${tiles ? `<div class="hairgrid env-metrics">${tiles}</div>` : ''}
-      ${charts ? `<div class="charts env-charts">${charts}</div>` : (a.sensors.length ? '' : '<p class="hint space-hint">No sensors in this space. <button type="button" class="link-btn" data-action="new-sensor" data-space="' + esc(sp.id) + '">Add one</button>.</p>')}
+      ${a.notes.length ? `<ul class="env-notes">${a.notes.map((n) => `<li class="t-${n.level}"><i class="dot ${n.level}"></i><span>${esc(n.text)}</span></li>`).join('')}</ul>` : ''}
+      ${tiles ? `<div class="metrics">${tiles}</div>` : ''}
+      ${charts ? `<div class="charts env-charts">${charts}</div>` : (a.sensors.length ? '' : `<p class="space-hint">No sensors in this space. <button type="button" class="link-btn" data-action="new-sensor" data-space="${esc(sp.id)}">Add one</button>.</p>`)}
     </article>`;
   }
 
@@ -250,8 +263,6 @@
     const level = c && c.fresh ? c.ev.level : 'none';
     const value = c ? E.fmtValue(k, c.value, u, false) : '—';
     const unitTxt = E.unitLabel(k, u);
-    const tir = a.inRange24[k];
-    const tirTxt = tir ? `<span class="tir ${tir.share >= 0.95 ? '' : tir.share >= 0.8 ? 't-watch' : 't-flag'}">${Math.round(tir.share * 100)}% in range · 24h</span>` : '';
     let by = '';
     if (need && a.residents.length > 1 && m.type === 'range') {
       const who = [need.minBinds && need.minBy, need.maxBinds && need.maxBy].filter(Boolean);
@@ -259,12 +270,12 @@
       else if (who.length === 2) by = ` · min ${who[0]}, max ${who[1]}`;
     }
     const src = c ? (c.derived ? 'from temperature + humidity' : `${esc(c.sensor.name)} · ${E.agoShort(Date.now() - c.at)}`) : 'no sensor';
-    return `<div class="stat env-stat ${c && !c.fresh ? 'is-stale' : ''}">
-      <span class="eyebrow">${level !== 'none' ? `<i class="dot ${level}"></i>` : ''}${esc(m.short)}</span>
-      <span class="stat-v">${esc(value)}${unitTxt ? `<span class="u">${esc(unitTxt)}</span>` : ''}</span>
-      <span class="stat-s">${need ? esc(needText(k, need, u) + by) : 'no requirement'}</span>
-      ${tirTxt ? `<span class="stat-s">${tirTxt}</span>` : ''}
-      <span class="stat-s stat-src">${src}</span>
+    return `<div class="metric ${c && !c.fresh ? 'is-stale' : ''}">
+      <span class="k">${level !== 'none' ? `<i class="dot ${level}"></i>` : '<i class="dot none"></i>'}${esc(m.short)}</span>
+      <span class="v num">${esc(value)}${unitTxt ? `<span class="u">${esc(unitTxt)}</span>` : ''}</span>
+      <span class="s">${need ? esc(needText(k, need, u) + by) : 'no requirement'}</span>
+      ${tir(a.inRange24[k])}
+      <span class="s">${src}</span>
     </div>`;
   }
 
@@ -320,7 +331,7 @@
 
   function sensorTable(sensors, statuses) {
     if (!sensors.length) {
-      return `<div class="panel empty"><p>No sensors yet.</p><p class="muted">Connect over Bluetooth or Wi‑Fi, log readings by hand, or start with a simulated sensor.</p><button type="button" class="btn btn-primary" data-action="new-sensor">Add sensor</button></div>`;
+      return `<div class="panel empty"><p class="big">No sensors yet.</p><p class="muted">Connect over Bluetooth or Wi‑Fi, log readings by hand, or start with a simulated sensor.</p><button type="button" class="btn btn-primary" data-action="new-sensor"><span class="plus">+</span> Sensor</button></div>`;
     }
     const u = unit();
     const rows = sensors.map((s, i) => {
@@ -337,9 +348,9 @@
       else primary = `<button type="button" class="btn btn-sm" data-action="read-sensor" data-id="${esc(s.id)}" ${s.enabled ? '' : 'disabled'}>Read now</button>`;
 
       return `<tr class="st-${st.key}">
-        <td class="c-sensor"><span class="name">${esc(s.name)}</span><span class="sub mono">${esc(s.id)} · ${esc(connectionText(s))}</span>${cal ? `<span class="sub mono">${esc(cal)}</span>` : ''}</td>
+        <td class="c-sensor"><span class="name">${esc(s.name)}</span><span class="sub">${esc(s.id)} · ${esc(connectionText(s))}</span>${cal ? `<span class="sub">${esc(cal)}</span>` : ''}</td>
         <td class="c-space" data-label="Space">${sp ? esc(sp.name) : '<span class="muted">Unassigned</span>'}</td>
-        <td class="c-reading" data-label="Reading"><span class="mono">${esc(readingText(last && last.v, s.metrics, u))}</span></td>
+        <td class="c-reading" data-label="Reading">${esc(readingText(last && last.v, s.metrics, u))}</td>
         <td class="c-state" data-label="Status"><span class="sstate ${st.key}"><i></i>${esc(st.label)}</span><span class="sub">${esc(seen + battery)}</span>${st.message ? `<span class="sub st-msg">${esc(st.message)}</span>` : ''}</td>
         <td class="c-controls"><div class="controls">
           ${primary}
@@ -350,38 +361,38 @@
       </tr>`;
     }).join('');
 
-    return `<div class="panel"><div class="log-wrap"><table class="log sensors">
+    return `<div class="log-wrap"><table class="log sensors">
       <thead><tr>
         <th scope="col">Sensor</th><th scope="col">Space</th><th scope="col">Reading</th><th scope="col">Status</th>
         <th scope="col"><span class="visually-hidden">Controls</span></th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table></div></div>`;
+    </table></div>`;
   }
 
   function connectGuide() {
     const ble = H.sensors.bleSupported();
     return `<section class="section" aria-labelledby="guide-h">
-      <div class="section-head"><h2 class="eyebrow" id="guide-h">Connecting sensors</h2></div>
-      <div class="hairgrid guide">
-        <div class="stat"><span class="eyebrow">Bluetooth</span>
+      <div class="section-head"><h2 id="guide-h"><span class="n">003</span>Connecting sensors</h2></div>
+      <div class="guide">
+        <div><span class="micro">004A</span><h3>Bluetooth</h3>
           <p>Pair directly from this page. Sensors exposing Environmental Sensing (0x181A): Xiaomi LYWSD03MMC on pvvx firmware, many ESP32 builds.</p>
-          <p class="stat-s">${ble ? 'Available in this browser.' : 'Not available in this browser. Use Chrome or Edge on a computer or Android.'}</p></div>
-        <div class="stat"><span class="eyebrow">Wi‑Fi / HTTP</span>
+          <p class="ok">${ble ? 'Available in this browser' : 'Not in this browser · use Chrome or Edge on a computer or Android'}</p></div>
+        <div><span class="micro">004B</span><h3>Wi&#8209;Fi / HTTP</h3>
           <p>Polls any JSON endpoint. Easiest via Home Assistant, which already speaks to most sensor brands (Govee, SensorPush, Aqara, Shelly, Zigbee).</p>
-          <p class="stat-s">The device must serve https and allow this site (CORS).</p></div>
-        <div class="stat"><span class="eyebrow">Manual</span>
+          <p class="ok">The device must serve https and allow this site (CORS)</p></div>
+        <div><span class="micro">004C</span><h3>Manual</h3>
           <p>Log readings from any meter in seconds. Readings stay valid for 12 hours, then the sensor shows as due.</p>
-          <p class="stat-s">Works on every device.</p></div>
-        <div class="stat"><span class="eyebrow">Keep in mind</span>
+          <p class="ok">Works on every device</p></div>
+        <div><span class="micro">004D</span><h3>Keep in mind</h3>
           <p>Herd has no server: sensors are read only while a tab is open. For 24/7 capture, let a hub record and point Herd at it.</p>
-          <p class="stat-s">Access tokens stay in this browser and are never exported.</p></div>
+          <p class="ok">Access tokens stay in this browser and are never exported</p></div>
       </div>
     </section>`;
   }
 
   /* ======================================================================
-     Subject page panel and overview summary
+     Subject page panel and field summary
      ====================================================================== */
 
   function subjectEnv(subject) {
@@ -408,18 +419,15 @@
       if (!rows.some((r) => r.c)) level = 'none';
     }
     // Time in range against THIS animal's needs, not the space's combined limits.
-    const tir = a ? E.timeInRange(a.sensors, needs.metrics, Date.now()) : {};
-    return { u, needs, space: a ? a.space : null, a, rows, level, notes, tir };
+    const t = a ? E.timeInRange(a.sensors, needs.metrics, Date.now()) : {};
+    return { u, needs, space: a ? a.space : null, a, rows, level, notes, tir: t };
   }
 
   function subjectPanel(subject) {
     // Nothing to show until a space or sensor exists.
     if (!ES.spaces().length && !ES.sensors().length) return '';
-    return `<section class="section" aria-labelledby="env-h">
-      <div class="section-head">
-        <h2 class="eyebrow" id="env-h">Environment</h2>
-        <span class="section-meta"><a href="#/env">Spaces &amp; sensors</a></span>
-      </div>
+    return `<section class="panel env-subject" aria-labelledby="env-h">
+      <div class="section-head"><h2 id="env-h">Environment</h2><span class="section-meta"><a href="#/env">Spaces &amp; sensors</a></span></div>
       <div data-live="subject-env:${esc(subject.id)}">${subjectPanelBody(subject).html}</div>
     </section>`;
   }
@@ -428,47 +436,43 @@
     const r = subjectEnv(subject);
     const p = r.needs.profile;
     const editBtn = `<button type="button" class="btn btn-sm" data-action="edit-needs" data-id="${esc(subject.id)}">Space &amp; needs</button>`;
-    const preset = `<p class="env-preset"><span class="mono">${esc(p.label)}</span> preset${r.needs.overridden ? ' with overrides' : ''} · ${esc(p.source)}${r.needs.note ? ` · <em>${esc(r.needs.note)}</em>` : ''}</p>`;
+    const preset = `<p class="env-preset">${esc(p.label)} preset${r.needs.overridden ? ' with overrides' : ''} · ${esc(p.source)}${r.needs.note ? ` · <em>${esc(r.needs.note)}</em>` : ''}</p>`;
 
     if (!r.space) {
-      return { html: `<div class="panel panel-body env-subject">
-        <div class="env-subject-head"><div><p>Not assigned to a space, so ${esc(subject.name)}'s surroundings aren't checked.</p>${preset}</div>${editBtn}</div>
-        <div class="hairgrid env-metrics">${E.ORDER.filter((k) => r.needs.metrics[k]).map((k) => `<div class="stat env-stat"><span class="eyebrow">${esc(E.METRICS[k].short)}</span><span class="stat-s">needs ${esc(needText(k, r.needs.metrics[k], r.u))}</span></div>`).join('')}</div>
-      </div>` };
+      return { html: `<div class="env-subject-head"><div><p style="font-size:14px">Not in a space, so ${esc(subject.name)}&rsquo;s surroundings aren&rsquo;t checked.</p>${preset}</div>${editBtn}</div>
+        <div class="metrics">${E.ORDER.filter((k) => r.needs.metrics[k]).map((k) => `<div class="metric"><span class="k">${esc(E.METRICS[k].short)}</span><span class="s">needs ${esc(needText(k, r.needs.metrics[k], r.u))}</span></div>`).join('')}</div>` };
     }
 
     const notes = r.notes.length
       ? r.notes.map((n) => `<li class="t-${n.level}"><i class="dot ${n.level}"></i><span>${esc(n.text)}</span></li>`).join('')
-      : `<li class="t-nominal"><i class="dot ${r.level === 'none' ? '' : 'nominal'}"></i><span>${r.level === 'none' ? 'No readings from this space yet' : `Within ${esc(subject.name)}'s range`}</span></li>`;
+      : `<li class="t-nominal"><i class="dot ${r.level === 'none' ? 'none' : 'nominal'}"></i><span>${r.level === 'none' ? 'No readings from this space yet' : `Within ${esc(subject.name)}&rsquo;s range`}</span></li>`;
 
     const tiles = r.rows.map(({ k, need, c, ev }) => {
       const lvl = c && c.fresh ? ev.level : 'none';
       const src = need && need.from && (need.from.min === 'override' || need.from.max === 'override' || need.from.watch === 'override') ? ' · override' : '';
-      return `<div class="stat env-stat ${c && !c.fresh ? 'is-stale' : ''}">
-        <span class="eyebrow">${lvl !== 'none' ? `<i class="dot ${lvl}"></i>` : ''}${esc(E.METRICS[k].short)}</span>
-        <span class="stat-v">${c ? esc(E.fmtValue(k, c.value, r.u, false)) : '—'}${E.unitLabel(k, r.u) ? `<span class="u">${esc(E.unitLabel(k, r.u))}</span>` : ''}</span>
-        <span class="stat-s">${need ? `needs ${esc(needText(k, need, r.u))}${src}` : 'no requirement'}</span>
-        ${r.tir[k] ? `<span class="stat-s ${r.tir[k].share >= 0.95 ? '' : r.tir[k].share >= 0.8 ? 't-watch' : 't-flag'}">${Math.round(r.tir[k].share * 100)}% in range · 24h</span>` : ''}
+      return `<div class="metric ${c && !c.fresh ? 'is-stale' : ''}">
+        <span class="k"><i class="dot ${lvl}"></i>${esc(E.METRICS[k].short)}</span>
+        <span class="v num">${c ? esc(E.fmtValue(k, c.value, r.u, false)) : '—'}${E.unitLabel(k, r.u) ? `<span class="u">${esc(E.unitLabel(k, r.u))}</span>` : ''}</span>
+        <span class="s">${need ? `needs ${esc(needText(k, need, r.u))}${src}` : 'no requirement'}</span>
+        ${tir(r.tir[k])}
       </div>`;
     }).join('');
 
-    return { html: `<div class="panel panel-body env-subject">
-      <div class="env-subject-head">
+    return { html: `<div class="env-subject-head">
         <div>
-          <div class="s-idrow"><a href="#/env" class="space-link">${esc(r.space.name)}</a><span class="mono s-id">${esc(r.space.id)}</span>${r.level === 'none' ? '' : V.pill(r.level)}</div>
+          <a href="#/env" class="space-link">${esc(r.space.name)}</a> <span class="micro">${esc(r.space.id)}</span>
           ${preset}
         </div>
         ${editBtn}
       </div>
       <ul class="env-notes">${notes}</ul>
-      ${tiles ? `<div class="hairgrid env-metrics">${tiles}</div>` : ''}
-    </div>` };
+      ${tiles ? `<div class="metrics">${tiles}</div>` : ''}` };
   }
 
   function overviewSummary() {
     return `<section class="section" aria-labelledby="ov-env-h">
       <div class="section-head">
-        <h2 class="eyebrow" id="ov-env-h">Environment</h2>
+        <h2 id="ov-env-h"><span class="n">002</span>Environment</h2>
         <span class="section-meta"><a href="#/env">Spaces &amp; sensors</a></span>
       </div>
       <div data-live="overview-env">${overviewSummaryBody().html}</div>
@@ -478,22 +482,22 @@
   function overviewSummaryBody() {
     const spaces = ES.spaces();
     if (!spaces.length) {
-      return { html: `<div class="panel panel-body env-empty-line"><span class="muted">No sensors connected yet.</span> <a href="#/env">Environment</a></div>` };
+      return { html: `<div class="panel env-empty-line"><span class="muted">No sensors connected yet. Spaces and climate checks show up here once you add one.</span><a class="btn btn-sm" href="#/env">Open environment</a></div>` };
     }
     const u = unit();
     const rows = spaces.map((sp) => {
       const a = E.analyzeSpace(sp.id);
       const val = (k) => (a.current[k] ? E.fmtValue(k, a.current[k].value, u, true) : null);
       const readings = ['temp', 'humidity', 'co2'].map(val).filter(Boolean).join(' · ') || '—';
-      return `<li><a class="env-row" href="#/env">
-        <span class="c-id mono">${esc(sp.id)}</span>
+      return `<a class="env-row" href="#/env">
+        <span class="c-id">${esc(sp.id)}</span>
         <span class="c-name"><span class="name">${esc(sp.name)}</span><span class="sub">${a.residents.length} ${a.residents.length === 1 ? 'resident' : 'residents'} · ${a.sensors.length} ${a.sensors.length === 1 ? 'sensor' : 'sensors'}</span></span>
-        <span class="c-reading mono">${esc(readings)}</span>
-        <span class="c-signal">${esc(a.notes[0] ? a.notes[0].text : '')}</span>
+        <span class="c-reading">${esc(readings)}</span>
+        <span class="c-signal">${esc(a.notes[0] ? a.notes[0].text : 'All readings within range')}</span>
         <span class="c-status">${statusPill(a.level)}</span>
-      </a></li>`;
+      </a>`;
     }).join('');
-    return { html: `<ul class="list env-list" aria-label="Spaces">${rows}</ul>` };
+    return { html: `<div class="env-strip" role="list" aria-label="Spaces">${rows}</div>` };
   }
 
   /* Live re-render entry point used by the app. */
@@ -511,10 +515,7 @@
      Dialogs
      ====================================================================== */
 
-  const head = (eyebrow, title) => `<div class="dlg-head">
-      <div><p class="eyebrow">${eyebrow}</p><h2 class="dlg-title" id="dialog-title">${title}</h2></div>
-      <button type="button" class="btn btn-quiet btn-sm" data-action="close-dialog" aria-label="Close">Close</button>
-    </div>`;
+  const head = (eyebrow, title) => V.dlgHead(eyebrow, title);
 
   function spaceForm(space) {
     const subjects = S.subjects();
@@ -856,7 +857,7 @@
   }
 
   H.envViews = {
-    envPage, subjectPanel, overviewSummary, live,
+    envPage, subjectPanel, overviewSummary, live, sensorTally,
     spaceForm, readSpaceForm, sensorForm, syncSensorForm, readSensorForm, manualForm, readManualForm, needsForm, readNeedsForm,
     mountCharts, KIND, PRESETS,
   };
