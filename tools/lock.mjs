@@ -181,10 +181,19 @@ button[disabled]{opacity:.6;cursor:wait}
   var B = function (s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); };
   var err = document.getElementById("err"), go = document.getElementById("go");
   var label = go.innerHTML;
+  // Replace the whole page, but only once the gate has finished loading.
+  // Writing while the browser is still parsing it appends the app underneath
+  // the gate instead of replacing it.
+  function swap(html) {
+    var go = function () {
+      document.open(); document.write(html); document.close();
+    };
+    if (document.readyState === "complete") setTimeout(go, 0);
+    else addEventListener("load", function () { setTimeout(go, 0); }, { once: true });
+  }
   async function show(key) {
     var buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: B(IV) }, key, B(CT));
-    var html = new TextDecoder().decode(buf);
-    document.open(); document.write(html); document.close();
+    swap(new TextDecoder().decode(buf));
   }
   async function derive(pw) {
     var base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
@@ -208,8 +217,7 @@ button[disabled]{opacity:.6;cursor:wait}
         var raw = new Uint8Array(await crypto.subtle.exportKey("raw", key));
         try { localStorage.setItem(KEY, btoa(String.fromCharCode.apply(null, raw))); } catch (e) {}
       }
-      var html = new TextDecoder().decode(buf);
-      document.open(); document.write(html); document.close();
+      swap(new TextDecoder().decode(buf));
     } catch (e) {
       err.textContent = "Wrong passphrase.";
       go.disabled = false; go.innerHTML = label;
