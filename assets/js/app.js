@@ -358,17 +358,23 @@
     const form = dlg.querySelector('form[data-form="entry"]');
     if (form) {
       V.updatePreview(form);
-      const act = form.elements.namedItem('activity');
-      if (act) act.focus();
+      const first = firstOpen(form);
+      if (first) first.focus();
     }
+  }
+
+  /* The first control of the first unanswered question, else the first one. */
+  function firstOpen(form) {
+    const q = form.querySelector('[data-field]:not(.answered)') || form.querySelector('[data-field]');
+    return q ? q.querySelector('input:checked, input[type="radio"], input[type="range"], input, button') : null;
   }
 
   function focusEntry() {
     const form = main.querySelector('#entry form');
     if (!form) return;
-    form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
-    const act = form.elements.namedItem('activity');
-    setTimeout(() => act && act.focus({ preventScroll: true }), 250);
+    form.closest('section').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    const first = firstOpen(form);
+    setTimeout(() => first && first.focus({ preventScroll: true }), 300);
   }
 
   function submitEntry(form) {
@@ -376,20 +382,25 @@
     V.markErrors(form, errors);
     if (errors.length) {
       const first = form.querySelector('[aria-invalid="true"]');
-      if (first) (first.matches('.radios') ? first.querySelector('input') : first).focus();
+      if (first) {
+        const target = first.matches('[data-field]') ? first.querySelector('input:checked, input[type="radio"], input[type="range"], input') : first;
+        if (target) target.focus();
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
     const subjectId = form.dataset.subject;
-    const saved = S.saveEntry(subjectId, values, form.dataset.entryId || null);
+    const entryId = form.dataset.entryId || null;
+    const base = B.baselineFor(S.entries(subjectId), values.date, entryId);
+    const v = V.verdict(values, base, form.dataset.name || subjectId);
+    const saved = S.saveEntry(subjectId, values, entryId);
     if (form.closest('dialog')) closeDialog();
     render();
 
-    const ev = B.analyze(S.entries(subjectId)).evals.get(saved.id);
-    const label = V.LEVEL_LABEL[ev.level];
-    const detail = ev.notes.length ? ` · ${ev.notes[0].text || ''}` : '';
-    const note = ev.notes.length && ev.notes[0].kind === 'delta' ? ` · ${ev.notes[0].label} ${U.fmtPct(ev.notes[0].pct)}` : detail;
-    toast(`${subjectId} · ${U.fmtDate(saved.date)} saved · ${label}${note}`, ev.level);
+    const reason = v.items.find((it) => it.level === v.level && v.level !== 'nominal');
+    toast(`Saved · ${v.head.replace(/\.$/, '')}${reason ? ` · ${reason.text.toLowerCase()}` : ''}`, v.level);
+    void saved;
   }
 
   async function deleteEntry(id) {
@@ -676,7 +687,7 @@
     const today = U.todayISO();
     S.subjects().forEach((s) => {
       const st = B.analyze(S.entries(s.id)).status;
-      const note = st.notes[0] ? (st.notes[0].kind === 'delta' ? `${st.notes[0].label} ${U.fmtPct(st.notes[0].pct)} vs 14-day baseline` : st.notes[0].text || '') : '';
+      const note = st.notes[0] ? V.notePlain(st.notes[0]) : '';
       list.push({
         group: 'Subjects', key: `${s.id} ${s.name} ${s.species} ${s.breed}`,
         icon: V.sil(s.species, st.level), id: s.id, title: s.name, sub: [`${V.LEVEL_LABEL[st.level]}`, note].filter(Boolean).join(' · '), go: 'Open',
@@ -686,8 +697,8 @@
     S.subjects().forEach((s) => {
       const done = S.entryOn(s.id, today);
       list.push({
-        group: 'Log', key: `log today entry ${s.id} ${s.name}`,
-        icon: '<svg aria-hidden="true"><use href="#i-plus"/></svg>', id: s.id, title: `${done ? 'Edit' : 'Log'} today’s entry`, sub: s.name, go: 'Log',
+        group: 'Log', key: `log check in today entry ${s.id} ${s.name}`,
+        icon: '<svg aria-hidden="true"><use href="#i-plus"/></svg>', id: s.id, title: `${done ? 'Edit today’s check-in' : 'Check in for today'}`, sub: s.name, go: 'Open',
         run: () => openTodayDialog(s.id), secondary: true,
       });
     });
@@ -695,7 +706,7 @@
       list.push({ group: 'Spaces', key: `space ${sp.id} ${sp.name}`, icon: '<svg aria-hidden="true"><use href="#i-env"/></svg>', id: sp.id, title: sp.name, sub: `${ES.residentsOf(sp.id).length} residents`, go: 'Edit', run: () => openDialog(EV.spaceForm(ES.space(sp.id))) });
     });
     const act = (title, key, sub, run, icon) => list.push({ group: 'Actions', key: `${title} ${key}`, icon: `<svg aria-hidden="true"><use href="#${icon || 'i-plus'}"/></svg>`, title, sub, go: 'Run', run });
-    act('New subject', 'add create animal', 'Shortcut N', () => openSubjectDialog());
+    act('New animal', 'add create subject', 'Shortcut N', () => openSubjectDialog());
     act('Field', 'overview home subjects go', 'Shortcut G then F', () => navigate('#/'), 'i-field');
     act('Environment', 'spaces sensors climate go', 'Shortcut G then E', () => navigate('#/env'), 'i-env');
     act('Add sensor', 'new bluetooth wifi manual simulated', '', () => openSensorDialog(null), 'i-env');
@@ -846,6 +857,11 @@
       case 'delete-entry': deleteEntry(id); break;
       case 'log-entry': openTodayDialog(id); break;
       case 'focus-entry': focusEntry(); break;
+      case 'ef-day': case 'ef-act': case 'ef-tag': case 'ef-wake': {
+        const f = t.closest('form[data-form="entry"]');
+        if (f) V.entryAction(f, t);
+        break;
+      }
       case 'close-dialog': closeDialog(); break;
       case 'export': exportData(); break;
       case 'import': pickImport(); break;
@@ -901,10 +917,10 @@
     if (sensorForm) { EV.syncSensorForm(sensorForm); return; }
     const form = ev.target.closest('form[data-form="entry"]');
     if (!form) return;
-    if (ev.target.name) {
-      const group = ev.target.closest('.radios');
-      (group || ev.target).removeAttribute('aria-invalid');
-    }
+    const q = ev.target.closest('[data-field]');
+    if (q) q.removeAttribute('aria-invalid');
+    if (ev.target.removeAttribute) ev.target.removeAttribute('aria-invalid');
+    V.syncEntry(form, ev.target);
     V.updatePreview(form);
   };
   document.addEventListener('input', onFormInput);

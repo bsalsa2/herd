@@ -427,7 +427,7 @@
     // Nothing to show until a space or sensor exists.
     if (!ES.spaces().length && !ES.sensors().length) return '';
     return `<section class="panel env-subject" aria-labelledby="env-h">
-      <div class="section-head"><h2 id="env-h">Environment</h2><span class="section-meta"><a href="#/env">Spaces &amp; sensors</a></span></div>
+      <div class="section-head"><h2 id="env-h"><span class="n">004</span>Where ${esc(subject.name)} lives</h2><span class="section-meta"><a href="#/env">Spaces &amp; sensors</a></span></div>
       <div data-live="subject-env:${esc(subject.id)}">${subjectPanelBody(subject).html}</div>
     </section>`;
   }

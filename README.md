@@ -31,8 +31,17 @@ The published site has two parts, both served from `docs/`:
   current signal in plain language, 14-day baseline statistics, energy and
   activity charts with the baseline band and the −20% / −30% lines, today's
   entry beside them, the environment panel, and the full log.
-- **Live preview** — while you fill in an entry, Herd shows the flag it will
-  raise before you save it.
+- **Check-in** — logging a day is a few plain questions: *How was their
+  energy?* (Very low → High), *How long were they active?* (a slider with
+  quick times and a marker at their usual), *How much did they eat?* (All of
+  it / Some of it / Little or none), and an optional note with tap-to-add signs
+  such as Limping or Coughing. Today / Yesterday chips pick the day; wake-up
+  time is an optional fold-out. Stored values are unchanged (energy 1–5,
+  minutes, full/partial/low), so older records and exports still work.
+- **What Herd sees** — before you save, the check-in says in words how the day
+  compares with the animal's usual: "A big change for Dog 2 · much less active
+  than usual (45 min, usually about 1 h 35 min)". The percentage stays as a
+  small detail.
 - **Add, edit, delete** subjects and entries. Subject IDs (`HRD-0001`, …) are
   permanent and never reused, even after a delete.
 - **Environment hub** (`#/env`) — spaces, species-aware climate needs, and one
