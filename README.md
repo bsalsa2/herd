@@ -317,7 +317,20 @@ browser when the password is right. The public site links to it as **Internal**.
 - **Serve it:** Settings → Pages → Source **Deploy from a branch**, branch
   `main`, folder **`/docs`**. The landing page is at `/herd/`, the app at
   `/herd/internal/`.
-- **Change the password or rebuild after editing the app:**
+- **Let GitHub lock it for you (recommended):** `.github/workflows/lock.yml`
+  re-encrypts the app on every push to `main` that touches `index.html`,
+  `assets/` or `tools/lock.mjs`, commits `docs/internal/index.html`, and asks
+  Pages to redeploy. One-time setup:
+  1. **Settings → Secrets and variables → Actions → New repository secret**.
+  2. Name `HERD_PASSWORD`, value your passphrase (12+ characters). Use the
+     same one as before to keep signed-in devices signed in.
+  3. **Actions → Lock internal app → Run workflow** (branch `main`) to publish
+     now. After that it runs by itself. Run it by hand again whenever you
+     change the secret.
+
+  The secret is encrypted by GitHub and can't be read back, not even by you.
+  Without it the workflow skips with a warning and changes nothing.
+- **Or lock it from your own computer:**
 
   ```bash
   HERD_PASSWORD='a long passphrase' node tools/lock.mjs

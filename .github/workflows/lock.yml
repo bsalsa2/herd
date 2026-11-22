@@ -1,0 +1,66 @@
+name: Lock internal app
+
+# Re-encrypts the records app into docs/internal/ whenever its source changes
+# on main, so the published copy always matches the code. It needs a
+# repository secret named HERD_PASSWORD (Settings → Secrets and variables →
+# Actions). Without it the job does nothing and the published app stays as is.
+# Run it by hand from the Actions tab after adding or changing the secret.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - assets/**
+      - tools/lock.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: lock-internal
+  cancel-in-progress: false
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Encrypt the app
+        id: lock
+        env:
+          HERD_PASSWORD: ${{ secrets.HERD_PASSWORD }}
+        run: |
+          if [ -z "$HERD_PASSWORD" ]; then
+            echo "::warning title=HERD_PASSWORD is not set::Add a repository secret named HERD_PASSWORD to publish the app. docs/internal/ was left unchanged."
+            echo "locked=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node tools/lock.mjs
+          echo "locked=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the locked page
+        if: steps.lock.outputs.locked == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/internal/index.html
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git commit -m "Lock the internal app"
+          git push
+
+      - name: Ask Pages to rebuild
+        if: steps.lock.outputs.locked == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "Pages will pick up the commit on its own."
