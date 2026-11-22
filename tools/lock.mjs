@@ -56,8 +56,8 @@ const page = `<!doctype html>
 <meta name="color-scheme" content="light dark">
 <title>Herd</title>
 <style>
-:root{color-scheme:light dark;--bg:#F2EFF6;--text:#0B0B0F;--text2:#5B5B66;--glass:rgba(255,255,255,.34);--hi:rgba(255,255,255,.95);--shadow:rgba(70,55,110,.2);--accent:#4F5BD5;--bad:#C4282D;--a:rgba(247,170,130,.85);--b:rgba(150,140,248,.8);--c:rgba(140,196,244,.75)}
-@media(prefers-color-scheme:dark){:root{--bg:#08080C;--text:#EDEDEF;--text2:#B4B4C0;--glass:rgba(255,255,255,.06);--hi:rgba(255,255,255,.3);--shadow:rgba(0,0,0,.6);--accent:#8B93FF;--bad:#FF7B80;--a:rgba(140,86,58,.55);--b:rgba(76,84,210,.6);--c:rgba(30,124,144,.55)}}
+:root{color-scheme:light dark;--bg:#EDF0EB;--text:#121614;--text2:#4E5752;--glass:rgba(255,255,255,.34);--hi:rgba(255,255,255,.95);--shadow:rgba(30,60,48,.2);--accent:#7446E0;--bad:#C8304A;--a:rgba(112,176,152,.9);--b:rgba(172,132,248,.8);--c:rgba(246,146,86,.85)}
+@media(prefers-color-scheme:dark){:root{--bg:#060908;--text:#ECEFEC;--text2:#BDC6C0;--glass:rgba(255,255,255,.06);--hi:rgba(255,255,255,.3);--shadow:rgba(0,0,0,.6);--accent:#9B74F5;--bad:#FF6E86;--a:rgba(28,104,82,.62);--b:rgba(104,62,196,.55);--c:rgba(160,72,28,.55)}}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--text);font:15px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:-12%;z-index:-1;background:radial-gradient(34% 30% at 14% 12%,var(--a),transparent 70%),radial-gradient(34% 30% at 88% 24%,var(--b),transparent 72%),radial-gradient(32% 30% at 60% 94%,var(--c),transparent 72%);filter:blur(18px)}
@@ -69,7 +69,7 @@ input[type=password]{width:100%;height:46px;padding:0 16px;border:1px solid rgba
 input[type=password]:focus{outline:2px solid var(--accent);outline-offset:1px}
 .row{display:flex;align-items:center;gap:8px;margin:14px 0 0;font-size:13.5px;color:var(--text2)}
 .row input{width:16px;height:16px;accent-color:var(--accent)}
-button{width:100%;height:46px;margin-top:18px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 10px 24px rgba(79,91,213,.3)}
+button{width:100%;height:46px;margin-top:18px;border:0;border-radius:999px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 10px 24px rgba(116,70,224,.3)}
 button[disabled]{opacity:.6;cursor:wait}
 #err{min-height:20px;margin:12px 0 0;font-size:13.5px;color:var(--bad)}
 </style>

@@ -31,47 +31,6 @@
      Overview
      ====================================================================== */
 
-  /* Binomial names, so every subject reads like a specimen record. */
-  const LATIN = [
-    [/\b(donkey|burro|ass)\b/, 'Equus asinus'],
-    [/\b(dog|dogs|canine|puppy)\b/, 'Canis lupus familiaris'],
-    [/\b(cat|cats|feline|kitten)\b/, 'Felis catus'],
-    [/\b(horse|equine|pony|mare|gelding|stallion|foal)\b/, 'Equus caballus'],
-    [/\b(cow|cows|cattle|bovine|calf|heifer|steer|bull)\b/, 'Bos taurus'],
-    [/\b(pig|swine|hog|sow|boar|piglet)\b/, 'Sus domesticus'],
-    [/\b(sheep|ewe|ram|lamb)\b/, 'Ovis aries'],
-    [/\b(goat|goats|kid|doe)\b/, 'Capra hircus'],
-    [/\b(rabbit|bunny)\b/, 'Oryctolagus cuniculus'],
-    [/\b(chicken|hen|poultry|rooster|broiler|layer)\b/, 'Gallus gallus domesticus'],
-  ];
-  function latinName(species) {
-    const v = String(species || '').toLowerCase();
-    const hit = LATIN.find(([re]) => re.test(v));
-    return hit ? hit[1] : '';
-  }
-  const specimenNo = (id) => 'No. ' + String(parseInt(String(id).slice(4), 10) || 0).padStart(3, '0');
-
-  /* Sequence: the last 14 days as a barcode. Bar height = energy, colour =
-     that day's signal; an empty slot is a day with no entry. */
-  function sequence(a, today) {
-    const byDate = new Map(a.entries.map((e) => [e.date, e]));
-    const bars = [];
-    let flags = 0;
-    let logged = 0;
-    for (let i = 13; i >= 0; i--) {
-      const d = U.addDays(today, -i);
-      const e = byDate.get(d);
-      if (!e) { bars.push('<i class="none"></i>'); continue; }
-      logged++;
-      const ev = a.evals.get(e.id);
-      const lv = ev.level === 'nominal' && ev.calibrating ? 'calib' : ev.level;
-      if (lv === 'flag') flags++;
-      bars.push(`<i class="${lv}" style="--h:${Math.round(18 + (e.energy - 1) * 20.5)}%"></i>`);
-    }
-    const label = `Last 14 days: ${logged} entries, ${flags} flagged`;
-    return `<span class="seq" role="img" aria-label="${esc(label)}">${bars.join('')}</span>`;
-  }
-
   function overview(state) {
     const today = U.todayISO();
     const items = S.subjects().map((s) => ({ s, a: B.analyze(S.entries(s.id)) }));
@@ -100,11 +59,11 @@
     } else {
       list = `<ul class="list" aria-label="Subjects">
           <li class="list-head" aria-hidden="true">
-            <span class="eyebrow">Specimen</span>
+            <span class="eyebrow">ID</span>
             <span class="eyebrow">Subject</span>
             <span class="eyebrow">Species</span>
             <span class="eyebrow h-last">Last entry</span>
-            <span class="eyebrow">Sequence · 14D</span>
+            <span class="eyebrow">Energy · 14D</span>
             <span class="eyebrow">Signal</span>
             <span class="eyebrow r">Status</span>
           </li>
@@ -116,21 +75,13 @@
       title: 'Herd · Subjects',
       html: `<section class="view">
         ${storageBanner()}
-        <header class="hero">
-          <p class="hero-kicker mono"><span>Herd</span><span>Longitudinal record</span><span>${esc(U.fmtDateLong(today))}</span></p>
-          <div class="hero-top">
-            <h1 class="hero-title">The herd,<br><em>observed.</em></h1>
-            ${items.length ? `<figure class="plate panel" aria-label="Figure 1: energy and signal for each subject over the last 14 days">
-              <figcaption class="plate-cap mono"><span>Fig. 1</span><span>Energy × signal · 14 days</span></figcaption>
-              ${items.slice(0, 6).map((it) => `<div class="plate-row"><span class="plate-label mono">${specimenNo(it.s.id)}<b>${esc(it.s.name)}</b></span>${sequence(it.a, today)}</div>`).join('')}
-              <div class="plate-axis mono"><span>${U.MINUS}13 d</span><span>Today</span></div>
-            </figure>` : ''}
+        <div class="page-head">
+          <div>
+            <p class="eyebrow">Overview</p>
+            <h1 class="page-title">Subjects</h1>
           </div>
-          <div class="hero-foot">
-            <p class="hero-lede">${heroLede(counts)}</p>
-            <button type="button" class="btn btn-primary" data-action="new-subject">New subject <span aria-hidden="true">→</span></button>
-          </div>
-        </header>
+          <button type="button" class="btn btn-primary" data-action="new-subject">New subject</button>
+        </div>
         <div class="hairgrid tiles" role="group" aria-label="Filter subjects by status">
           ${tile('all', 'Subjects', counts.all)}
           ${tile('nominal', 'Nominal', counts.nominal)}
@@ -143,29 +94,25 @@
     };
   }
 
-  function heroLede(c) {
-    if (!c.all) return 'No subjects under observation yet. Each one gets a permanent ID and is measured only against itself.';
-    const n = (k, one, many) => `${c[k]} ${c[k] === 1 ? one : many}`;
-    const parts = [];
-    if (c.flag) parts.push(`${n('flag', 'flagged', 'flagged')}`);
-    if (c.watch) parts.push(`${n('watch', 'on watch', 'on watch')}`);
-    const tail = parts.length ? parts.join(', ') + '.' : 'All within their own baselines.';
-    return `${n('all', 'subject', 'subjects')} under continuous observation, each measured only against itself. ${tail}`;
-  }
-
   function subjectRow({ s, a }, today) {
     const st = a.status;
     const last = st.latest;
+    const recent = a.entries.slice(-14);
+    const mean = a.current && a.current.ready ? a.current.energy.mean : null;
+    const spark = C.sparkline(recent.map((e) => e.energy), {
+      domain: [1, 5], level: st.level, mean,
+      label: `Energy, last ${recent.length} entries${recent.length ? `, latest ${recent[recent.length - 1].energy} of 5` : ''}`,
+    });
     const stale = last && U.daysBetween(last.date, today) > 2;
     const notes = st.notes.slice(0, 2).map(noteHTML).join('<br>');
     const more = st.notes.length > 2 ? `<br><span class="more">+${st.notes.length - 2} more</span>` : '';
 
     return `<li><a class="subject-row" href="#/s/${esc(s.id)}" aria-label="${esc(s.id)} ${esc(s.name)}, status ${LEVEL_LABEL[st.level]}">
-      <span class="c-id"><span class="no mono">${specimenNo(s.id)}</span><span class="sub mono">${esc(s.id)}</span></span>
+      <span class="c-id mono">${esc(s.id)}</span>
       <span class="c-name"><span class="name">${esc(s.name)}</span><span class="sub mono" title="${esc(U.SEX[s.sex])}">${esc(s.sex)} · ${esc(U.ageLabel(s.ageYears, s.ageRecordedOn, today))}</span></span>
-      <span class="c-species">${latinName(s.species) ? `<span class="latin">${esc(latinName(s.species))}</span>` : esc(s.species)}<span class="sub">${esc(s.breed || s.species)}</span></span>
+      <span class="c-species">${esc(s.species)}${s.breed ? `<span class="sub">${esc(s.breed)}</span>` : ''}</span>
       <span class="c-last mono">${last ? `${U.fmtDate(last.date)}<span class="sub${stale ? ' stale' : ''}">${U.fmtAgo(last.date, today)}</span>` : '<span class="sub">—</span>'}</span>
-      <span class="c-spark">${sequence(a, today)}</span>
+      <span class="c-spark">${spark}</span>
       <span class="c-signal">${notes}${more}</span>
       <span class="c-status">${pill(st.level)}</span>
     </a></li>`;
@@ -197,12 +144,11 @@
       <header class="s-head">
         <div>
           <div class="s-idrow">
-            <span class="eyebrow">Specimen ${specimenNo(s.id)}</span>
+            <span class="eyebrow">Subject</span>
             <span class="mono s-id">${esc(s.id)}</span>
             ${pill(st.level)}
           </div>
           <h1 class="s-name">${esc(s.name)}</h1>
-          ${latinName(s.species) ? `<p class="s-latin">${esc(latinName(s.species))}</p>` : ''}
           <dl class="facts">
             <div><dt>Species</dt><dd>${esc(s.species)}</dd></div>
             ${s.breed ? `<div><dt>Breed</dt><dd>${esc(s.breed)}</dd></div>` : ''}
