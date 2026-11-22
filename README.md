@@ -12,6 +12,13 @@ needs.
 It is a static web app: plain HTML, CSS, and vanilla JavaScript. No framework,
 no build step, no server, no account. It runs on GitHub Pages as-is.
 
+The published site has two parts, both served from `docs/`:
+
+| Path | What it is | Who can use it |
+|------|------------|----------------|
+| `/` | Public landing page | Everyone |
+| `/internal/` | The records app, encrypted behind a passphrase | Only someone with the passphrase |
+
 ---
 
 ## Features
@@ -270,25 +277,52 @@ python3 -m http.server 8000
 
 Then visit <http://localhost:8000>.
 
+## Public site
+
+`docs/index.html` is the public landing page: what Herd is, a live aerial-herd
+hero (simulated, with a thermal view inside the wordmark), and working
+instruments that run Herd's real rules — the baseline preview on HRD-0002's
+sample record, the shared-space resolver and the THI calculator. It is plain
+HTML, CSS and JavaScript with no dependencies:
+
+```
+docs/index.html         Page markup (silhouette sprite and species rows inline)
+docs/assets/site.css    Design tokens, layout, responsive rules
+docs/assets/site.js     Hero simulation, demos, scroll and reveal effects
+docs/assets/og.jpg      Share image
+docs/assets/favicon.svg Icon
+```
+
+Numbers on the page come from the app itself (`CONFIG` in
+`assets/js/baseline.js`, `PROFILES` in `assets/js/environment.js`). If you
+change a threshold or a preset, change it on the page too. Animal silhouettes
+are public-domain (CC0) images from PhyloPic, credited in the footer.
+
 ## Private hosting (password lock)
 
-GitHub Pages is public file hosting, so Herd locks itself: `docs/index.html` is
-the whole app, encrypted with a password (PBKDF2 → AES-256-GCM). Visitors see a
-login box; the app only decrypts in the browser when the password is right.
+GitHub Pages is public file hosting, so the records app locks itself:
+`docs/internal/index.html` is the whole app, encrypted with a password
+(PBKDF2 → AES-256-GCM). Visitors see a login gate; the app only decrypts in the
+browser when the password is right. The public site links to it as **Internal**.
 
 - **Serve it:** Settings → Pages → Source **Deploy from a branch**, branch
-  `main`, folder **`/docs`**.
+  `main`, folder **`/docs`**. The landing page is at `/herd/`, the app at
+  `/herd/internal/`.
 - **Change the password or rebuild after editing the app:**
 
   ```bash
   HERD_PASSWORD='a long passphrase' node tools/lock.mjs
   ```
 
-  Then commit `docs/index.html`. The password is never written to disk.
-- **Limits:** this keeps casual visitors out of your copy. It does not hide the
-  source code in this repository; make the repo private for that (note that
-  GitHub's free plan can't serve Pages from a private repo). A guessed or weak
-  password can be attacked offline, so use a long random one.
+  Then commit `docs/internal/index.html`. The password is never written to disk.
+- **Restyle the gate without the password:** edit the template at the bottom of
+  `tools/lock.mjs`, then run `node tools/lock.mjs --restyle`. It keeps the
+  existing ciphertext, so the password stays the same.
+- **Limits:** this keeps everyone without the passphrase out of the app. It does
+  not hide the app's source code in this repository; make the repo private for
+  that (GitHub's free plan can't serve Pages from a private repo). A guessed or
+  weak password can be attacked offline, so use a long random one. For a
+  server-side login, put the site behind something like Cloudflare Access.
 - Records are stored per browser either way, so each device starts empty. Use
   Export and Import to move data.
 
@@ -335,7 +369,7 @@ git push -u origin main
 1. Open the repository on GitHub.
 2. Go to **Settings → Pages** (left sidebar, under *Code and automation*).
 3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
-4. Under **Branch**, choose **`main`** and folder **`/ (root)`**, then **Save**.
+4. Under **Branch**, choose **`main`** and folder **`/docs`**, then **Save**.
 5. Wait about a minute. The **Actions** tab shows a *pages build and deployment*
    run; when it turns green, the Pages settings page shows your URL:
    `https://<you>.github.io/herd/`
@@ -350,8 +384,8 @@ Every later push to `main` redeploys automatically.
 
 - **404 right after enabling** — the first deploy takes a minute or two.
   Hard-refresh.
-- **Unstyled page** — check that `assets/` was committed and that the Pages
-  folder is `/ (root)`, not `/docs`.
+- **Unstyled page** — check that `docs/assets/` was committed and that the
+  Pages folder is `/docs`.
 - **Old version showing** — Pages caches for ~10 minutes. Hard-refresh
   (Cmd/Ctrl + Shift + R).
 - **Your data didn't follow you** — data is per browser and per origin. Data
@@ -360,8 +394,12 @@ Every later push to `main` redeploys automatically.
 ## Project structure
 
 ```
-index.html              App shell
+index.html              App shell (source; run locally or lock for Pages)
 .nojekyll               Serve files as-is on GitHub Pages
+docs/                   What GitHub Pages serves
+docs/index.html         Public landing page (see Public site)
+docs/internal/          The app, encrypted by tools/lock.mjs
+tools/lock.mjs          Encrypts the app and builds the login gate
 assets/css/herd.css     Design system: tokens, light/dark, layout, components
 assets/js/util.js       Dates, formatting, escaping
 assets/js/seed.js       Sample subjects and 14 days of entries each
