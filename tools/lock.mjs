@@ -60,8 +60,11 @@ async function askPassword() {
 }
 
 const password = (await askPassword()).trim();
-if (password.length < 12) {
-  console.error('Use a password of at least 12 characters. A long passphrase is much safer.');
+// The locked file holds only the app's code (already public in the repo) and
+// sample data; records never leave the browser. So the password is a door,
+// not a vault, and 8 characters is the floor. Longer is still stronger.
+if (password.length < 8) {
+  console.error('Use a password of at least 8 characters.');
   process.exit(1);
 }
 

@@ -322,7 +322,7 @@ browser when the password is right. The public site links to it as **Internal**.
   `assets/` or `tools/lock.mjs`, commits `docs/internal/index.html`, and asks
   Pages to redeploy. One-time setup:
   1. **Settings → Secrets and variables → Actions → New repository secret**.
-  2. Name `HERD_PASSWORD`, value your passphrase (12+ characters). Use the
+  2. Name `HERD_PASSWORD`, value your passphrase (8+ characters). Use the
      same one as before to keep signed-in devices signed in.
   3. **Actions → Lock internal app → Run workflow** (branch `main`) to publish
      now. After that it runs by itself. Run it by hand again whenever you
@@ -348,8 +348,10 @@ browser when the password is right. The public site links to it as **Internal**.
   existing ciphertext, so the password stays the same.
 - **Limits:** this keeps everyone without the passphrase out of the app. It does
   not hide the app's source code in this repository; make the repo private for
-  that (GitHub's free plan can't serve Pages from a private repo). A guessed or
-  weak password can be attacked offline, so use a long random one. For a
+  that (GitHub's free plan can't serve Pages from a private repo). The locked
+  file holds only that code and the sample data, never your records, which
+  stay in each browser. A guessed password therefore opens an empty app, not
+  your data. Longer passwords are still harder to guess offline. For a
   server-side login, put the site behind something like Cloudflare Access.
 - Records are stored per browser either way, so each device starts empty. Use
   Export and Import to move data.
